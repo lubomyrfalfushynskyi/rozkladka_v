@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.lubomyrf" "\0"
-            VALUE "FileDescription", "vohnegasnyky_oblik" "\0"
+            VALUE "FileDescription", "rozkladka_v" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "vohnegasnyky_oblik" "\0"
+            VALUE "InternalName", "rozkladka_v" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.lubomyrf. All rights reserved." "\0"
-            VALUE "OriginalFilename", "vohnegasnyky_oblik.exe" "\0"
-            VALUE "ProductName", "vohnegasnyky_oblik" "\0"
+            VALUE "OriginalFilename", "rozkladka_v.exe" "\0"
+            VALUE "ProductName", "rozkladka_v" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

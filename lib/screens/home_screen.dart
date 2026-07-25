@@ -75,7 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Облік вогнегасників'),
+        title: const Text('РозкладкаВ'),
         actions: [
           IconButton(
             icon: const Icon(Icons.summarize),

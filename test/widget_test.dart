@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-import 'package:vohnegasnyky_oblik/main.dart';
+import 'package:rozkladka_v/main.dart';
 
 void main() {
   setUpAll(() {
@@ -16,6 +16,6 @@ void main() {
     });
     await tester.pump();
 
-    expect(find.text('Облік вогнегасників'), findsOneWidget);
+    expect(find.text('РозкладкаВ'), findsOneWidget);
   });
 }

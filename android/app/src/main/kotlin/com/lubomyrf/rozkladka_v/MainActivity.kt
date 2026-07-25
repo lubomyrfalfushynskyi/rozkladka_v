@@ -1,4 +1,4 @@
-package com.lubomyrf.vohnegasnyky_oblik
+package com.lubomyrf.rozkladka_v
 
 import io.flutter.embedding.android.FlutterActivity
 

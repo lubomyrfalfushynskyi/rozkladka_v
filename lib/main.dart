@@ -12,7 +12,7 @@ class VohnegasnykyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Облік вогнегасників',
+      title: 'РозкладкаВ',
       theme: ThemeData(colorSchemeSeed: Colors.red, useMaterial3: true),
       home: const HomeScreen(),
     );
