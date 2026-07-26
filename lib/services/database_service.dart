@@ -2,9 +2,13 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/building.dart';
+import '../models/extinguisher.dart';
+import '../models/extinguisher_type.dart';
 import '../models/floor.dart';
 import '../models/room.dart';
 import '../models/territory.dart';
+
+const String _settingsKeyGeneralAllowedTypes = 'general_allowed_types';
 
 class DatabaseService {
   DatabaseService._();
@@ -22,7 +26,7 @@ class DatabaseService {
     final path = join(dbPath, 'vohnegasnyky.db');
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE buildings (
@@ -56,10 +60,43 @@ class DatabaseService {
             area REAL NOT NULL
           )
         ''');
+        await _createExtinguisherTables(db);
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await _createExtinguisherTables(db);
+        }
       },
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
+    );
+  }
+
+  Future<void> _createExtinguisherTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE extinguishers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        serialNumber TEXT NOT NULL,
+        inventoryNumber TEXT NOT NULL,
+        type TEXT NOT NULL,
+        capacityLiters REAL NOT NULL,
+        roomId INTEGER,
+        floorId INTEGER,
+        FOREIGN KEY (roomId) REFERENCES rooms (id) ON DELETE CASCADE,
+        FOREIGN KEY (floorId) REFERENCES floors (id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    ''');
+    await db.insert(
+      'settings',
+      {'key': _settingsKeyGeneralAllowedTypes, 'value': ExtinguisherType.vp.code},
+      conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
@@ -161,5 +198,59 @@ class DatabaseService {
     final db = await database;
     final rows = await db.query('territories', orderBy: 'name');
     return rows.map(Territory.fromMap).toList();
+  }
+
+  // Extinguishers
+  Future<int> insertExtinguisher(Extinguisher extinguisher) async {
+    final db = await database;
+    return db.insert('extinguishers', extinguisher.toMap()..remove('id'));
+  }
+
+  Future<int> updateExtinguisher(Extinguisher extinguisher) async {
+    final db = await database;
+    return db.update('extinguishers', extinguisher.toMap(), where: 'id = ?', whereArgs: [extinguisher.id]);
+  }
+
+  Future<int> deleteExtinguisher(int id) async {
+    final db = await database;
+    return db.delete('extinguishers', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<Extinguisher>> getExtinguishersForRoom(int roomId) async {
+    final db = await database;
+    final rows = await db.query('extinguishers', where: 'roomId = ?', whereArgs: [roomId], orderBy: 'id');
+    return rows.map(Extinguisher.fromMap).toList();
+  }
+
+  Future<List<Extinguisher>> getExtinguishersForFloor(int floorId) async {
+    final db = await database;
+    final rows = await db.query('extinguishers', where: 'floorId = ?', whereArgs: [floorId], orderBy: 'id');
+    return rows.map(Extinguisher.fromMap).toList();
+  }
+
+  Future<List<Extinguisher>> getAllExtinguishers() async {
+    final db = await database;
+    final rows = await db.query('extinguishers', orderBy: 'id');
+    return rows.map(Extinguisher.fromMap).toList();
+  }
+
+  // Settings
+  Future<List<ExtinguisherType>> getAllowedGeneralTypes() async {
+    final db = await database;
+    final rows = await db.query('settings', where: 'key = ?', whereArgs: [_settingsKeyGeneralAllowedTypes]);
+    if (rows.isEmpty) return [ExtinguisherType.vp];
+    final codes = (rows.first['value'] as String).split(',').where((c) => c.isNotEmpty);
+    final types = codes.map(ExtinguisherType.fromCode).toList();
+    return types.isEmpty ? [ExtinguisherType.vp] : types;
+  }
+
+  Future<void> setAllowedGeneralTypes(List<ExtinguisherType> types) async {
+    final db = await database;
+    final value = (types.isEmpty ? [ExtinguisherType.vp] : types).map((t) => t.code).join(',');
+    await db.insert(
+      'settings',
+      {'key': _settingsKeyGeneralAllowedTypes, 'value': value},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 }

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../models/extinguisher.dart';
+import '../models/extinguisher_type.dart';
 import '../models/floor.dart';
 import '../models/room.dart';
 import '../services/calculation_service.dart';
 import '../services/database_service.dart';
+import 'extinguisher_list_screen.dart';
 import 'room_form_screen.dart';
 
 class FloorScreen extends StatefulWidget {
@@ -18,6 +21,9 @@ class FloorScreen extends StatefulWidget {
 class _FloorScreenState extends State<FloorScreen> {
   final _db = DatabaseService.instance;
   List<Room> _rooms = [];
+  List<Extinguisher> _floorExtinguishers = [];
+  Map<int, List<Extinguisher>> _extinguishersByRoomId = {};
+  List<ExtinguisherType> _allowedGeneralTypes = [ExtinguisherType.vp];
   bool _loading = true;
 
   @override
@@ -28,9 +34,20 @@ class _FloorScreenState extends State<FloorScreen> {
 
   Future<void> _reload() async {
     final rooms = await _db.getRoomsForFloor(widget.floor.id!);
+    final floorExtinguishers = await _db.getExtinguishersForFloor(widget.floor.id!);
+    final allowedTypes = await _db.getAllowedGeneralTypes();
+    final byRoom = <int, List<Extinguisher>>{};
+    for (final room in rooms) {
+      if (room.hasComputer && room.id != null) {
+        byRoom[room.id!] = await _db.getExtinguishersForRoom(room.id!);
+      }
+    }
     if (!mounted) return;
     setState(() {
       _rooms = rooms;
+      _floorExtinguishers = floorExtinguishers;
+      _extinguishersByRoomId = byRoom;
+      _allowedGeneralTypes = allowedTypes;
       _loading = false;
     });
   }
@@ -42,7 +59,12 @@ class _FloorScreenState extends State<FloorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final calc = CalculationService.calculateFloor(widget.floor, _rooms);
+    final calc = CalculationService.calculateFloor(
+      widget.floor,
+      _rooms,
+      floorExtinguishers: _floorExtinguishers,
+      extinguishersByRoomId: _extinguishersByRoomId,
+    );
     return Scaffold(
       appBar: AppBar(title: Text(widget.floor.name)),
       body: _loading
@@ -66,9 +88,43 @@ class _FloorScreenState extends State<FloorScreen> {
                           'Потрібно вогнегасної речовини: ${calc.requiredLiters.toStringAsFixed(0)} л',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
+                        Text('Наявна ємність (загальна площа): ${calc.assignedCapacityLiters.toStringAsFixed(1)} л'),
+                        if (calc.shortageLiters > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              'Недостача: ${calc.shortageLiters.toStringAsFixed(1)} л',
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                            ),
+                          )
+                        else
+                          const Padding(
+                            padding: EdgeInsets.only(top: 4),
+                            child: Text('Забезпечено достатньо', style: TextStyle(color: Colors.green)),
+                          ),
                       ],
                     ),
                   ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.local_fire_department),
+                  title: const Text('Вогнегасники загальної площі'),
+                  subtitle: Text('${_floorExtinguishers.length} шт. · дозволені типи: '
+                      '${_allowedGeneralTypes.map((t) => t.code).join(", ")}'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ExtinguisherListScreen(
+                          title: 'Вогнегасники — загальна площа',
+                          floorId: widget.floor.id,
+                          allowedTypes: _allowedGeneralTypes,
+                        ),
+                      ),
+                    );
+                    _reload();
+                  },
                 ),
                 const Padding(
                   padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -80,31 +136,56 @@ class _FloorScreenState extends State<FloorScreen> {
                     child: Text('Ще немає жодного кабінету'),
                   ),
                 for (final room in _rooms)
-                  ListTile(
-                    leading: Icon(room.hasComputer ? Icons.computer : Icons.meeting_room_outlined),
-                    title: Text(room.name),
-                    subtitle: Text(
-                      room.hasComputer
-                          ? '${room.area.toStringAsFixed(0)} м² · ${CalculationService.extinguisherClassFor(room.area)}'
-                          : '${room.area.toStringAsFixed(0)} м² · без ПК (входить у загальний розрахунок)',
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined),
-                          onPressed: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => RoomFormScreen(floor: widget.floor, room: room)),
-                            );
-                            _reload();
-                          },
-                        ),
-                        IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => _deleteRoom(room)),
-                      ],
-                    ),
-                  ),
+                  Builder(builder: (context) {
+                    final assigned = room.id != null ? (_extinguishersByRoomId[room.id!] ?? const []) : const [];
+                    return ListTile(
+                      leading: Icon(room.hasComputer ? Icons.computer : Icons.meeting_room_outlined),
+                      title: Text(room.name),
+                      subtitle: Text(
+                        room.hasComputer
+                            ? '${room.area.toStringAsFixed(0)} м² · ${CalculationService.extinguisherClassFor(room.area)} · '
+                                '${assigned.isEmpty ? "вогнегасник не встановлено" : "встановлено: ${assigned.length} шт."}'
+                            : '${room.area.toStringAsFixed(0)} м² · без ПК (входить у загальний розрахунок)',
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (room.hasComputer)
+                            IconButton(
+                              icon: Icon(
+                                Icons.local_fire_department,
+                                color: assigned.isEmpty ? Colors.red : Colors.green,
+                              ),
+                              tooltip: 'Вогнегасники кабінету',
+                              onPressed: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ExtinguisherListScreen(
+                                      title: 'Вогнегасники — ${room.name}',
+                                      roomId: room.id,
+                                      allowedTypes: const [ExtinguisherType.vvk],
+                                    ),
+                                  ),
+                                );
+                                _reload();
+                              },
+                            ),
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => RoomFormScreen(floor: widget.floor, room: room)),
+                              );
+                              _reload();
+                            },
+                          ),
+                          IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => _deleteRoom(room)),
+                        ],
+                      ),
+                    );
+                  }),
                 const SizedBox(height: 80),
               ],
             ),

@@ -5,6 +5,7 @@ import '../models/territory.dart';
 import '../services/calculation_service.dart';
 import '../services/database_service.dart';
 import 'building_screen.dart';
+import 'settings_screen.dart';
 import 'summary_screen.dart';
 import 'territory_form_screen.dart';
 
@@ -85,6 +86,17 @@ class _HomeScreenState extends State<HomeScreen> {
               MaterialPageRoute(builder: (context) => const SummaryScreen()),
             ),
           ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Налаштування',
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+              _reload();
+            },
+          ),
         ],
       ),
       body: ListView(
@@ -114,7 +126,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const Divider(),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Text('Територія (ТУЗ)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            child: Text('Територія (ТВУЗ)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ),
           if (_territories.isEmpty)
             const Padding(

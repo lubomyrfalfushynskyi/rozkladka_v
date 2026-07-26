@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/building.dart';
+import '../models/extinguisher.dart';
 import '../models/floor.dart';
 import '../models/room.dart';
 import '../models/territory.dart';
@@ -16,6 +17,8 @@ class SummaryScreen extends StatefulWidget {
 
 class SummaryData {
   double totalLiters = 0;
+  double totalShortageLiters = 0;
+  int totalMissingRoomExtinguishers = 0;
   final Map<String, int> extinguisherCounts = {};
   int totalShields = 0;
   final List<FloorSummary> floors = [];
@@ -47,10 +50,24 @@ class _SummaryScreenState extends State<SummaryScreen> {
       final floors = await db.getFloorsForBuilding(building.id!);
       for (final Floor floor in floors) {
         final List<Room> rooms = await db.getRoomsForFloor(floor.id!);
-        final calc = CalculationService.calculateFloor(floor, rooms);
+        final List<Extinguisher> floorExtinguishers = await db.getExtinguishersForFloor(floor.id!);
+        final byRoom = <int, List<Extinguisher>>{};
+        for (final room in rooms) {
+          if (room.hasComputer && room.id != null) {
+            byRoom[room.id!] = await db.getExtinguishersForRoom(room.id!);
+          }
+        }
+        final calc = CalculationService.calculateFloor(
+          floor,
+          rooms,
+          floorExtinguishers: floorExtinguishers,
+          extinguishersByRoomId: byRoom,
+        );
         data.totalLiters += calc.requiredLiters;
+        data.totalShortageLiters += calc.shortageLiters;
         for (final req in calc.computerRooms) {
           data.extinguisherCounts.update(req.extinguisherClass, (v) => v + 1, ifAbsent: () => 1);
+          data.totalMissingRoomExtinguishers += req.shortageCount;
         }
         data.floors.add(FloorSummary(buildingName: building.name, floorName: floor.name, calc: calc));
       }
@@ -75,9 +92,40 @@ class _SummaryScreenState extends State<SummaryScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           final data = snapshot.data!;
+          final hasShortage = data.totalShortageLiters > 0 || data.totalMissingRoomExtinguishers > 0;
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              if (hasShortage)
+                Card(
+                  color: Colors.red.withValues(alpha: 0.08),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.warning_amber_rounded, color: Colors.red),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Виявлено недостачу',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.red),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        if (data.totalShortageLiters > 0)
+                          Text('Бракує вогнегасної речовини (загальні приміщення): '
+                              '${data.totalShortageLiters.toStringAsFixed(1)} л'),
+                        if (data.totalMissingRoomExtinguishers > 0)
+                          Text('Бракує вогнегасників ВВК у кабінетах з ПК: '
+                              '${data.totalMissingRoomExtinguishers} шт.'),
+                      ],
+                    ),
+                  ),
+                ),
+              if (hasShortage) const SizedBox(height: 12),
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -88,7 +136,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
                       const SizedBox(height: 8),
                       Text('Вогнегасна речовина (звичайні приміщення): ${data.totalLiters.toStringAsFixed(0)} л'),
                       const SizedBox(height: 4),
-                      const Text('Вогнегасники для кабінетів з ПК:'),
+                      const Text('Вогнегасники для кабінетів з ПК (за нормою):'),
                       if (data.extinguisherCounts.isEmpty) const Text('  — немає кабінетів з ПК'),
                       for (final entry in data.extinguisherCounts.entries)
                         Padding(
@@ -106,7 +154,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Територія (ТУЗ)', style: Theme.of(context).textTheme.titleMedium),
+                      Text('Територія (ТВУЗ)', style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: 8),
                       Text('Потрібно пожежних щитів: ${data.totalShields}'),
                     ],
@@ -123,8 +171,12 @@ class _SummaryScreenState extends State<SummaryScreen> {
                     subtitle: Text(
                       'Залишкова площа: ${floorSummary.calc.remainingArea.toStringAsFixed(0)} м² · '
                       'потрібно: ${floorSummary.calc.requiredLiters.toStringAsFixed(0)} л · '
-                      'кабінетів з ПК: ${floorSummary.calc.computerRooms.length}',
+                      'наявно: ${floorSummary.calc.assignedCapacityLiters.toStringAsFixed(1)} л'
+                      '${floorSummary.calc.shortageLiters > 0 ? " · недостача: ${floorSummary.calc.shortageLiters.toStringAsFixed(1)} л" : ""}\n'
+                      'кабінетів з ПК: ${floorSummary.calc.computerRooms.length}'
+                      '${floorSummary.calc.computerRooms.any((r) => r.shortageCount > 0) ? " (бракує вогнегасників у ${floorSummary.calc.computerRooms.where((r) => r.shortageCount > 0).length})" : ""}',
                     ),
+                    isThreeLine: true,
                   ),
                 ),
             ],
