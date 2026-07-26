@@ -83,12 +83,12 @@ class _FloorScreenState extends State<FloorScreen> {
                           'Потрібно вогнегасної речовини: ${calc.requiredLiters.toStringAsFixed(0)} л',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        Text('Наявна ємність (загальна площа): ${calc.assignedCapacityLiters.toStringAsFixed(1)} л'),
+                        Text('Наявна ємність (загальна площа): ${calc.assignedCapacityLiters.toStringAsFixed(1)} од.'),
                         if (calc.shortageLiters > 0)
                           Padding(
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
-                              'Недостача: ${calc.shortageLiters.toStringAsFixed(1)} л',
+                              'Недостача: ${calc.shortageLiters.toStringAsFixed(1)} од.',
                               style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
                             ),
                           )

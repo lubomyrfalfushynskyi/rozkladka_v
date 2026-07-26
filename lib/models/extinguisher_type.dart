@@ -30,6 +30,19 @@ enum ExtinguisherType {
     }
   }
 
+  /// Одиниця виміру заряду: ВП/ВВК заряджаються за масою (кг),
+  /// ВВП/ВВ — за об'ємом (л).
+  String get unit {
+    switch (this) {
+      case ExtinguisherType.vp:
+      case ExtinguisherType.vvk:
+        return 'кг';
+      case ExtinguisherType.vvp:
+      case ExtinguisherType.vv:
+        return 'л';
+    }
+  }
+
   String get label => '$code — $fullName';
 
   static ExtinguisherType fromCode(String code) {

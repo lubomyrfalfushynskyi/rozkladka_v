@@ -117,7 +117,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
                         const SizedBox(height: 8),
                         if (data.totalShortageLiters > 0)
                           Text('Бракує вогнегасної речовини (загальні приміщення): '
-                              '${data.totalShortageLiters.toStringAsFixed(1)} л'),
+                              '${data.totalShortageLiters.toStringAsFixed(1)} од.'),
                         if (data.totalMissingRoomExtinguishers > 0)
                           Text('Бракує вогнегасників ВВК у кабінетах з ПК: '
                               '${data.totalMissingRoomExtinguishers} шт.'),
@@ -171,8 +171,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
                     subtitle: Text(
                       'Залишкова площа: ${floorSummary.calc.remainingArea.toStringAsFixed(0)} м² · '
                       'потрібно: ${floorSummary.calc.requiredLiters.toStringAsFixed(0)} л · '
-                      'наявно: ${floorSummary.calc.assignedCapacityLiters.toStringAsFixed(1)} л'
-                      '${floorSummary.calc.shortageLiters > 0 ? " · недостача: ${floorSummary.calc.shortageLiters.toStringAsFixed(1)} л" : ""}\n'
+                      'наявно: ${floorSummary.calc.assignedCapacityLiters.toStringAsFixed(1)} од.'
+                      '${floorSummary.calc.shortageLiters > 0 ? " · недостача: ${floorSummary.calc.shortageLiters.toStringAsFixed(1)} од." : ""}\n'
                       'кабінетів з ПК: ${floorSummary.calc.computerRooms.length}'
                       '${floorSummary.calc.computerRooms.any((r) => r.shortageCount > 0) ? " (бракує вогнегасників у ${floorSummary.calc.computerRooms.where((r) => r.shortageCount > 0).length})" : ""}',
                     ),

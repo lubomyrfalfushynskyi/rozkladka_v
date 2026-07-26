@@ -100,7 +100,7 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
                         leading: const Icon(Icons.local_fire_department_outlined),
                         title: Text(
                           '№${entry.extinguisher.id} · ${entry.extinguisher.type.code} · '
-                          '${entry.extinguisher.capacityLiters.toStringAsFixed(1)} л',
+                          '${entry.extinguisher.capacityLiters.toStringAsFixed(1)} ${entry.extinguisher.type.unit}',
                         ),
                         subtitle: Text(
                           '${entry.contextLabel}\n'

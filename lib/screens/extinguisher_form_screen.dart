@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/extinguisher.dart';
+import '../models/extinguisher_model_catalog.dart';
 import '../models/extinguisher_type.dart';
 import '../services/database_service.dart';
 
@@ -29,18 +31,18 @@ class _ExtinguisherFormScreenState extends State<ExtinguisherFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _serialController;
   late final TextEditingController _inventoryController;
-  late final TextEditingController _capacityController;
   late ExtinguisherType _type;
+  ExtinguisherModel? _model;
 
   @override
   void initState() {
     super.initState();
     _serialController = TextEditingController(text: widget.extinguisher?.serialNumber ?? '');
     _inventoryController = TextEditingController(text: widget.extinguisher?.inventoryNumber ?? '');
-    _capacityController = TextEditingController(
-      text: widget.extinguisher != null ? widget.extinguisher!.capacityLiters.toStringAsFixed(1) : '',
-    );
     _type = widget.extinguisher?.type ?? widget.allowedTypes.first;
+    if (widget.extinguisher != null) {
+      _model = ExtinguisherModelCatalog.findByTypeAndCapacity(_type, widget.extinguisher!.capacityLiters);
+    }
   }
 
   Future<void> _save() async {
@@ -51,7 +53,7 @@ class _ExtinguisherFormScreenState extends State<ExtinguisherFormScreen> {
       serialNumber: _serialController.text.trim(),
       inventoryNumber: _inventoryController.text.trim(),
       type: _type,
-      capacityLiters: double.parse(_capacityController.text.replaceAll(',', '.')),
+      capacityLiters: _model!.capacity,
       roomId: widget.roomId,
       floorId: widget.floorId,
     );
@@ -73,6 +75,7 @@ class _ExtinguisherFormScreenState extends State<ExtinguisherFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final models = ExtinguisherModelCatalog.forType(_type);
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.extinguisher == null ? 'Новий вогнегасник' : 'Редагувати вогнегасник'),
@@ -104,7 +107,18 @@ class _ExtinguisherFormScreenState extends State<ExtinguisherFormScreen> {
                     .toList(),
                 onChanged: widget.allowedTypes.length <= 1
                     ? null
-                    : (value) => setState(() => _type = value ?? _type),
+                    : (value) => setState(() {
+                          _type = value ?? _type;
+                          _model = null;
+                        }),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<ExtinguisherModel>(
+                initialValue: _model,
+                decoration: const InputDecoration(labelText: 'Модель'),
+                items: models.map((m) => DropdownMenuItem(value: m, child: Text(m.label))).toList(),
+                onChanged: (m) => setState(() => _model = m),
+                validator: (v) => v == null ? 'Оберіть модель' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -115,17 +129,15 @@ class _ExtinguisherFormScreenState extends State<ExtinguisherFormScreen> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _inventoryController,
-                decoration: const InputDecoration(labelText: 'Інвентарний номер'),
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Обовʼязково' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _capacityController,
-                decoration: const InputDecoration(labelText: 'Ємність, л (напр. 2 – 100)'),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Інвентарний номер',
+                  hintText: 'Лише цифри — перші 4 це код субрахунку бухобліку',
+                ),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 validator: (v) {
-                  final value = double.tryParse((v ?? '').replaceAll(',', '.'));
-                  if (value == null || value <= 0) return 'Вкажіть коректну ємність';
+                  final value = (v ?? '').trim();
+                  if (value.length < 4) return 'Мінімум 4 цифри (код субрахунку + номер)';
                   return null;
                 },
               ),

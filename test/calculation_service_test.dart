@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rozkladka_v/models/extinguisher.dart';
+import 'package:rozkladka_v/models/extinguisher_model_catalog.dart';
 import 'package:rozkladka_v/models/extinguisher_type.dart';
 import 'package:rozkladka_v/models/floor.dart';
 import 'package:rozkladka_v/models/room.dart';
@@ -165,6 +166,37 @@ void main() {
 
     test('fromCode для невідомого коду повертає ВП як безпечний дефолт', () {
       expect(ExtinguisherType.fromCode('???'), ExtinguisherType.vp);
+    });
+
+    test('одиниця виміру: ВП/ВВК — кг, ВВП/ВВ — л', () {
+      expect(ExtinguisherType.vp.unit, 'кг');
+      expect(ExtinguisherType.vvk.unit, 'кг');
+      expect(ExtinguisherType.vvp.unit, 'л');
+      expect(ExtinguisherType.vv.unit, 'л');
+    });
+  });
+
+  group('ExtinguisherModelCatalog', () {
+    test('кожен тип має хоча б одну модель', () {
+      for (final type in ExtinguisherType.values) {
+        expect(ExtinguisherModelCatalog.forType(type), isNotEmpty, reason: 'тип $type без моделей');
+      }
+    });
+
+    test('ємності моделей унікальні в межах одного типу (немає колізій пошуку)', () {
+      for (final type in ExtinguisherType.values) {
+        final capacities = ExtinguisherModelCatalog.forType(type).map((m) => m.capacity).toList();
+        expect(capacities.length, capacities.toSet().length, reason: 'дублікати ємностей у типі $type');
+      }
+    });
+
+    test('findByTypeAndCapacity знаходить точну модель', () {
+      final model = ExtinguisherModelCatalog.findByTypeAndCapacity(ExtinguisherType.vvk, 3.5);
+      expect(model?.code, 'ВВК-3.5');
+    });
+
+    test('findByTypeAndCapacity повертає null для значення поза номенклатурою', () {
+      expect(ExtinguisherModelCatalog.findByTypeAndCapacity(ExtinguisherType.vp, 999), isNull);
     });
   });
 }
