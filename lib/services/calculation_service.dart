@@ -16,8 +16,8 @@ class FireSafetyNorms {
   static const double areaUnitForLiters = 10.0;
 
   static const double computerRoomAreaThreshold = 20.0;
-  static const String smallComputerRoomExtinguisherClass = 'до 20 м² — вогнегасник 2 л';
-  static const String largeComputerRoomExtinguisherClass = 'понад 20 м² — вогнегасник 3,5 кг';
+  static const String smallComputerRoomExtinguisherClass = 'до 20 м² — вогнегасник 2 л';
+  static const String largeComputerRoomExtinguisherClass = 'понад 20 м² — вогнегасник 3,5 кг';
 
   static const double territoryAreaPerShield = 5000.0;
 

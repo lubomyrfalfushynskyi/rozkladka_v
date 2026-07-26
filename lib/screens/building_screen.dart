@@ -125,7 +125,7 @@ class _BuildingScreenState extends State<BuildingScreen> {
                       leading: const Icon(Icons.layers),
                       title: Text(floor.name),
                       subtitle: Text(
-                        '${floor.totalArea.toStringAsFixed(0)} м² · кабінетів з ПК: ${calc.computerRooms.length} · '
+                        '${floor.totalArea.toStringAsFixed(0)} м² · кабінетів з ПК: ${calc.computerRooms.length} · '
                         'потрібно л. на решту: ${calc.requiredLiters.toStringAsFixed(0)}',
                       ),
                       trailing: Row(

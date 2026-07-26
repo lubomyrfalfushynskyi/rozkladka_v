@@ -20,7 +20,7 @@ class SummaryData {
   double totalShortageLiters = 0;
   int totalMissingRoomExtinguishers = 0;
   final Map<String, int> extinguisherCounts = {};
-  int totalShields = 0;
+  final List<TerritoryCalculation> territoryCalcs = [];
   final List<FloorSummary> floors = [];
 }
 
@@ -34,6 +34,7 @@ class FloorSummary {
 
 class _SummaryScreenState extends State<SummaryScreen> {
   late Future<SummaryData> _future;
+  int? _territoryFilterId;
 
   @override
   void initState() {
@@ -75,7 +76,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
     final territories = await db.getTerritories();
     for (final Territory territory in territories) {
-      data.totalShields += CalculationService.calculateTerritory(territory).requiredShields;
+      data.territoryCalcs.add(CalculationService.calculateTerritory(territory));
     }
 
     return data;
@@ -93,6 +94,12 @@ class _SummaryScreenState extends State<SummaryScreen> {
           }
           final data = snapshot.data!;
           final hasShortage = data.totalShortageLiters > 0 || data.totalMissingRoomExtinguishers > 0;
+
+          final filteredTerritoryCalcs = _territoryFilterId == null
+              ? data.territoryCalcs
+              : data.territoryCalcs.where((t) => t.territory.id == _territoryFilterId).toList();
+          final shownShields = filteredTerritoryCalcs.fold<int>(0, (sum, t) => sum + t.requiredShields);
+
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -117,10 +124,10 @@ class _SummaryScreenState extends State<SummaryScreen> {
                         const SizedBox(height: 8),
                         if (data.totalShortageLiters > 0)
                           Text('Бракує вогнегасної речовини (загальні приміщення): '
-                              '${data.totalShortageLiters.toStringAsFixed(1)} од.'),
+                              '${data.totalShortageLiters.toStringAsFixed(1)} од.'),
                         if (data.totalMissingRoomExtinguishers > 0)
                           Text('Бракує вогнегасників ВВК у кабінетах з ПК: '
-                              '${data.totalMissingRoomExtinguishers} шт.'),
+                              '${data.totalMissingRoomExtinguishers} шт.'),
                       ],
                     ),
                   ),
@@ -134,14 +141,14 @@ class _SummaryScreenState extends State<SummaryScreen> {
                     children: [
                       Text('Загалом по будівлях', style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: 8),
-                      Text('Вогнегасна речовина (звичайні приміщення): ${data.totalLiters.toStringAsFixed(0)} л'),
+                      Text('Вогнегасна речовина (звичайні приміщення): ${data.totalLiters.toStringAsFixed(0)} л'),
                       const SizedBox(height: 4),
                       const Text('Вогнегасники для кабінетів з ПК (за нормою):'),
                       if (data.extinguisherCounts.isEmpty) const Text('  — немає кабінетів з ПК'),
                       for (final entry in data.extinguisherCounts.entries)
                         Padding(
                           padding: const EdgeInsets.only(left: 8, top: 2),
-                          child: Text('• ${entry.value} шт. — ${entry.key}'),
+                          child: Text('• ${entry.value} шт. — ${entry.key}'),
                         ),
                     ],
                   ),
@@ -156,7 +163,19 @@ class _SummaryScreenState extends State<SummaryScreen> {
                     children: [
                       Text('Територія (ТВУЗ)', style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: 8),
-                      Text('Потрібно пожежних щитів: ${data.totalShields}'),
+                      if (data.territoryCalcs.length > 1)
+                        DropdownButtonFormField<int?>(
+                          initialValue: _territoryFilterId,
+                          decoration: const InputDecoration(labelText: 'Фільтр за площею (територією)'),
+                          items: [
+                            const DropdownMenuItem<int?>(value: null, child: Text('Усі території (сума)')),
+                            for (final t in data.territoryCalcs)
+                              DropdownMenuItem<int?>(value: t.territory.id, child: Text(t.territory.name)),
+                          ],
+                          onChanged: (v) => setState(() => _territoryFilterId = v),
+                        ),
+                      const SizedBox(height: 8),
+                      Text('Потрібно пожежних щитів: $shownShields'),
                     ],
                   ),
                 ),
@@ -169,10 +188,10 @@ class _SummaryScreenState extends State<SummaryScreen> {
                   child: ListTile(
                     title: Text('${floorSummary.buildingName} — ${floorSummary.floorName}'),
                     subtitle: Text(
-                      'Залишкова площа: ${floorSummary.calc.remainingArea.toStringAsFixed(0)} м² · '
-                      'потрібно: ${floorSummary.calc.requiredLiters.toStringAsFixed(0)} л · '
-                      'наявно: ${floorSummary.calc.assignedCapacityLiters.toStringAsFixed(1)} од.'
-                      '${floorSummary.calc.shortageLiters > 0 ? " · недостача: ${floorSummary.calc.shortageLiters.toStringAsFixed(1)} од." : ""}\n'
+                      'Залишкова площа: ${floorSummary.calc.remainingArea.toStringAsFixed(0)} м² · '
+                      'потрібно: ${floorSummary.calc.requiredLiters.toStringAsFixed(0)} л · '
+                      'наявно: ${floorSummary.calc.assignedCapacityLiters.toStringAsFixed(1)} од.'
+                      '${floorSummary.calc.shortageLiters > 0 ? " · недостача: ${floorSummary.calc.shortageLiters.toStringAsFixed(1)} од." : ""}\n'
                       'кабінетів з ПК: ${floorSummary.calc.computerRooms.length}'
                       '${floorSummary.calc.computerRooms.any((r) => r.shortageCount > 0) ? " (бракує вогнегасників у ${floorSummary.calc.computerRooms.where((r) => r.shortageCount > 0).length})" : ""}',
                     ),

@@ -5,6 +5,7 @@ import '../models/floor.dart';
 import '../models/room.dart';
 import '../services/calculation_service.dart';
 import '../services/database_service.dart';
+import 'all_extinguishers_screen.dart';
 import 'room_form_screen.dart';
 
 class FloorScreen extends StatefulWidget {
@@ -75,20 +76,20 @@ class _FloorScreenState extends State<FloorScreen> {
                       children: [
                         Text('Розрахунок поверху', style: Theme.of(context).textTheme.titleMedium),
                         const SizedBox(height: 8),
-                        Text('Загальна площа: ${widget.floor.totalArea.toStringAsFixed(0)} м²'),
-                        Text('Площа кабінетів з ПК: ${calc.computerRoomsArea.toStringAsFixed(0)} м²'),
-                        Text('Залишкова площа (звичайні приміщення): ${calc.remainingArea.toStringAsFixed(0)} м²'),
+                        Text('Загальна площа: ${widget.floor.totalArea.toStringAsFixed(0)} м²'),
+                        Text('Площа кабінетів з ПК: ${calc.computerRoomsArea.toStringAsFixed(0)} м²'),
+                        Text('Залишкова площа (звичайні приміщення): ${calc.remainingArea.toStringAsFixed(0)} м²'),
                         const SizedBox(height: 4),
                         Text(
-                          'Потрібно вогнегасної речовини: ${calc.requiredLiters.toStringAsFixed(0)} л',
+                          'Потрібно вогнегасної речовини: ${calc.requiredLiters.toStringAsFixed(0)} л',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        Text('Наявна ємність (загальна площа): ${calc.assignedCapacityLiters.toStringAsFixed(1)} од.'),
+                        Text('Наявна ємність (загальна площа): ${calc.assignedCapacityLiters.toStringAsFixed(1)} од.'),
                         if (calc.shortageLiters > 0)
                           Padding(
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
-                              'Недостача: ${calc.shortageLiters.toStringAsFixed(1)} од.',
+                              'Недостача: ${calc.shortageLiters.toStringAsFixed(1)} од.',
                               style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
                             ),
                           )
@@ -97,14 +98,27 @@ class _FloorScreenState extends State<FloorScreen> {
                             padding: EdgeInsets.only(top: 4),
                             child: Text('Забезпечено достатньо', style: TextStyle(color: Colors.green)),
                           ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Керування вогнегасниками — на головному екрані.',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
                       ],
                     ),
                   ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.local_fire_department_outlined),
+                  title: const Text('Вогнегасники загальної площі'),
+                  subtitle: Text('${_floorExtinguishers.length} шт.'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AllExtinguishersScreen(
+                          initialBuildingId: widget.floor.buildingId,
+                          initialFloorId: widget.floor.id,
+                        ),
+                      ),
+                    );
+                    _reload();
+                  },
                 ),
                 const Padding(
                   padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -123,13 +137,34 @@ class _FloorScreenState extends State<FloorScreen> {
                       title: Text(room.name),
                       subtitle: Text(
                         room.hasComputer
-                            ? '${room.area.toStringAsFixed(0)} м² · ${CalculationService.extinguisherClassFor(room.area)} · '
-                                '${assigned.isEmpty ? "вогнегасник не встановлено" : "встановлено: ${assigned.length} шт."}'
-                            : '${room.area.toStringAsFixed(0)} м² · без ПК (входить у загальний розрахунок)',
+                            ? '${room.area.toStringAsFixed(0)} м² · ${CalculationService.extinguisherClassFor(room.area)} · '
+                                '${assigned.isEmpty ? "вогнегасник не встановлено" : "встановлено: ${assigned.length} шт."}'
+                            : '${room.area.toStringAsFixed(0)} м² · без ПК (входить у загальний розрахунок)',
                       ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (room.hasComputer)
+                            IconButton(
+                              icon: Icon(
+                                Icons.local_fire_department_outlined,
+                                color: assigned.isEmpty ? Colors.red : Colors.green,
+                              ),
+                              tooltip: 'Вогнегасники кабінету',
+                              onPressed: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => AllExtinguishersScreen(
+                                      initialBuildingId: widget.floor.buildingId,
+                                      initialFloorId: widget.floor.id,
+                                      initialRoomId: room.id,
+                                    ),
+                                  ),
+                                );
+                                _reload();
+                              },
+                            ),
                           IconButton(
                             icon: const Icon(Icons.edit_outlined),
                             onPressed: () async {

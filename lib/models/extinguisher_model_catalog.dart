@@ -25,7 +25,7 @@ class ExtinguisherModel {
     final capacityText = capacity == capacity.roundToDouble()
         ? capacity.toStringAsFixed(0)
         : capacity.toStringAsFixed(1);
-    return '$code ($capacityText ${type.unit}, ${category.label})';
+    return '$code ($capacityText ${type.unit}, ${category.label})';
   }
 }
 

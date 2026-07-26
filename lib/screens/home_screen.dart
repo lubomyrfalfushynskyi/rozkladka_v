@@ -145,7 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 leading: const Icon(Icons.terrain),
                 title: Text(territory.name),
                 subtitle: Text(
-                  '${territory.area.toStringAsFixed(0)} м² · потрібно щитів: ${calc.requiredShields}',
+                  '${territory.area.toStringAsFixed(0)} м² · потрібно щитів: ${calc.requiredShields}',
                 ),
                 onTap: () async {
                   await Navigator.push(
@@ -163,7 +163,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           ListTile(
             leading: const Icon(Icons.local_fire_department_outlined),
-            title: Text('Усього зареєстровано: $_extinguisherCount шт.'),
+            title: Text('Усього зареєстровано: $_extinguisherCount шт.'),
             subtitle: const Text('Перегляд, додавання, редагування'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () async {
