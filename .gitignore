@@ -4,6 +4,10 @@
 *.pyc
 *.swp
 .DS_Store
+
+# Готові APK в корені проєкту (для зручної установки) — не комітяться,
+# легко перезібрати командою `flutter build apk --release`
+/*.apk
 .atom/
 .build/
 .buildlog/
