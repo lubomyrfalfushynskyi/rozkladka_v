@@ -4,7 +4,9 @@ import '../models/building.dart';
 import '../models/territory.dart';
 import '../services/calculation_service.dart';
 import '../services/database_service.dart';
+import 'all_extinguishers_screen.dart';
 import 'building_screen.dart';
+import 'select_extinguisher_target_screen.dart';
 import 'settings_screen.dart';
 import 'summary_screen.dart';
 import 'territory_form_screen.dart';
@@ -20,6 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _db = DatabaseService.instance;
   List<Building> _buildings = [];
   List<Territory> _territories = [];
+  int _extinguisherCount = 0;
   bool _loading = true;
 
   @override
@@ -31,10 +34,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _reload() async {
     final buildings = await _db.getBuildings();
     final territories = await _db.getTerritories();
+    final extinguishers = await _db.getAllExtinguishers();
     if (!mounted) return;
     setState(() {
       _buildings = buildings;
       _territories = territories;
+      _extinguisherCount = extinguishers.length;
       _loading = false;
     });
   }
@@ -151,27 +156,57 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               );
             }),
-          const SizedBox(height: 80),
+          const Divider(),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Text('Вогнегасники', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.local_fire_department_outlined),
+            title: Text('Усього зареєстровано: $_extinguisherCount шт.'),
+            subtitle: const Text('Перегляд, додавання, редагування'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const AllExtinguishersScreen()),
+              );
+              _reload();
+            },
+          ),
+          const SizedBox(height: 220),
         ],
       ),
-      floatingActionButton: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FloatingActionButton.extended(
-              heroTag: 'addTerritory',
-              icon: const Icon(Icons.terrain),
-              label: const Text('Територія'),
-              onPressed: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const TerritoryFormScreen()),
-                );
-                _reload();
-              },
-            ),
+          FloatingActionButton.extended(
+            heroTag: 'addExtinguisher',
+            icon: const Icon(Icons.local_fire_department_outlined),
+            label: const Text('Вогнегасник'),
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SelectExtinguisherTargetScreen()),
+              );
+              _reload();
+            },
           ),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'addTerritory',
+            icon: const Icon(Icons.terrain),
+            label: const Text('Територія'),
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const TerritoryFormScreen()),
+              );
+              _reload();
+            },
+          ),
+          const SizedBox(height: 12),
           FloatingActionButton.extended(
             heroTag: 'addBuilding',
             icon: const Icon(Icons.apartment),

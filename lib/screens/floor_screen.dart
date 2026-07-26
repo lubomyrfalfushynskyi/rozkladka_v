@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../models/extinguisher.dart';
-import '../models/extinguisher_type.dart';
 import '../models/floor.dart';
 import '../models/room.dart';
 import '../services/calculation_service.dart';
 import '../services/database_service.dart';
-import 'extinguisher_list_screen.dart';
 import 'room_form_screen.dart';
 
 class FloorScreen extends StatefulWidget {
@@ -23,7 +21,6 @@ class _FloorScreenState extends State<FloorScreen> {
   List<Room> _rooms = [];
   List<Extinguisher> _floorExtinguishers = [];
   Map<int, List<Extinguisher>> _extinguishersByRoomId = {};
-  List<ExtinguisherType> _allowedGeneralTypes = [ExtinguisherType.vp];
   bool _loading = true;
 
   @override
@@ -35,7 +32,6 @@ class _FloorScreenState extends State<FloorScreen> {
   Future<void> _reload() async {
     final rooms = await _db.getRoomsForFloor(widget.floor.id!);
     final floorExtinguishers = await _db.getExtinguishersForFloor(widget.floor.id!);
-    final allowedTypes = await _db.getAllowedGeneralTypes();
     final byRoom = <int, List<Extinguisher>>{};
     for (final room in rooms) {
       if (room.hasComputer && room.id != null) {
@@ -47,7 +43,6 @@ class _FloorScreenState extends State<FloorScreen> {
       _rooms = rooms;
       _floorExtinguishers = floorExtinguishers;
       _extinguishersByRoomId = byRoom;
-      _allowedGeneralTypes = allowedTypes;
       _loading = false;
     });
   }
@@ -102,29 +97,14 @@ class _FloorScreenState extends State<FloorScreen> {
                             padding: EdgeInsets.only(top: 4),
                             child: Text('Забезпечено достатньо', style: TextStyle(color: Colors.green)),
                           ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Керування вогнегасниками — на головному екрані.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       ],
                     ),
                   ),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.local_fire_department),
-                  title: const Text('Вогнегасники загальної площі'),
-                  subtitle: Text('${_floorExtinguishers.length} шт. · дозволені типи: '
-                      '${_allowedGeneralTypes.map((t) => t.code).join(", ")}'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ExtinguisherListScreen(
-                          title: 'Вогнегасники — загальна площа',
-                          floorId: widget.floor.id,
-                          allowedTypes: _allowedGeneralTypes,
-                        ),
-                      ),
-                    );
-                    _reload();
-                  },
                 ),
                 const Padding(
                   padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -150,27 +130,6 @@ class _FloorScreenState extends State<FloorScreen> {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (room.hasComputer)
-                            IconButton(
-                              icon: Icon(
-                                Icons.local_fire_department,
-                                color: assigned.isEmpty ? Colors.red : Colors.green,
-                              ),
-                              tooltip: 'Вогнегасники кабінету',
-                              onPressed: () async {
-                                await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => ExtinguisherListScreen(
-                                      title: 'Вогнегасники — ${room.name}',
-                                      roomId: room.id,
-                                      allowedTypes: const [ExtinguisherType.vvk],
-                                    ),
-                                  ),
-                                );
-                                _reload();
-                              },
-                            ),
                           IconButton(
                             icon: const Icon(Icons.edit_outlined),
                             onPressed: () async {
