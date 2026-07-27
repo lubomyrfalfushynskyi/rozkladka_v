@@ -23,23 +23,36 @@ const List<String> csvHeaders = [
 ];
 
 class CsvService {
-  /// Формує CSV-звіт по всіх вогнегасниках (усі управління).
-  static Future<String> buildCsv() async {
+  /// Формує CSV-звіт по вогнегасниках. Без параметрів — по всіх управліннях
+  /// (глобальний звіт). З `divisionId`/`buildingId`/`floorId`/`roomId` —
+  /// звіт обмежується відповідним рівнем ієрархії (звіт "на цьому рівні").
+  static Future<String> buildCsv({
+    int? divisionId,
+    int? buildingId,
+    int? floorId,
+    int? roomId,
+  }) async {
     final db = DatabaseService.instance;
     final rows = <List<String>>[csvHeaders];
 
     final divisions = await db.getDivisions();
     for (final division in divisions) {
+      if (divisionId != null && division.id != divisionId) continue;
       final buildings = await db.getBuildingsForDivision(division.id!);
       for (final building in buildings) {
+        if (buildingId != null && building.id != buildingId) continue;
         final floors = await db.getFloorsForBuilding(building.id!);
         for (final floor in floors) {
-          final floorExtinguishers = await db.getExtinguishersForFloor(floor.id!);
-          for (final e in floorExtinguishers) {
-            rows.add(_row(e, division.name, building.name, floor.name, generalAreaLabel));
+          if (floorId != null && floor.id != floorId) continue;
+          if (roomId == null) {
+            final floorExtinguishers = await db.getExtinguishersForFloor(floor.id!);
+            for (final e in floorExtinguishers) {
+              rows.add(_row(e, division.name, building.name, floor.name, generalAreaLabel));
+            }
           }
           final rooms = await db.getRoomsForFloor(floor.id!);
           for (final room in rooms.where((r) => r.hasComputer)) {
+            if (roomId != null && room.id != roomId) continue;
             final roomExtinguishers = await db.getExtinguishersForRoom(room.id!);
             for (final e in roomExtinguishers) {
               rows.add(_row(e, division.name, building.name, floor.name, room.name));

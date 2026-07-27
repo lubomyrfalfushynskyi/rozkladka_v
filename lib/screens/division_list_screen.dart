@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/division.dart';
 import '../services/database_service.dart';
 import '../widgets/confirm_delete.dart';
+import 'all_extinguishers_screen.dart';
 import 'home_screen.dart';
 import 'settings_screen.dart';
 import 'summary_screen.dart';
@@ -71,6 +72,17 @@ class _DivisionListScreenState extends State<DivisionListScreen> {
       appBar: AppBar(
         title: const Text('РозкладкаВ'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.local_fire_department_outlined),
+            tooltip: 'Вогнегасники (усі управління) — CSV',
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const AllExtinguishersScreen()),
+              );
+              _reload();
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.summarize),
             tooltip: 'Зведений звіт',

@@ -45,6 +45,36 @@ void main() {
     expect(csvText, contains('1234001'));
   });
 
+  test('експорт з divisionId обмежує звіт лише цим управлінням', () async {
+    final db = DatabaseService.instance;
+    final divisionAId = await db.insertDivision(const Division(name: 'Управління Скоуп А'));
+    final buildingAId = await db.insertBuilding(Building(divisionId: divisionAId, name: 'Будівля Скоуп А'));
+    final floorAId = await db.insertFloor(Floor(buildingId: buildingAId, name: 'Поверх Скоуп А', totalArea: 100));
+    await db.insertExtinguisher(Extinguisher(
+      serialNumber: 'SN-SCOPE-A',
+      inventoryNumber: '1234004',
+      type: ExtinguisherType.vp,
+      capacityLiters: 5,
+      floorId: floorAId,
+    ));
+
+    final divisionBId = await db.insertDivision(const Division(name: 'Управління Скоуп Б'));
+    final buildingBId = await db.insertBuilding(Building(divisionId: divisionBId, name: 'Будівля Скоуп Б'));
+    final floorBId = await db.insertFloor(Floor(buildingId: buildingBId, name: 'Поверх Скоуп Б', totalArea: 100));
+    await db.insertExtinguisher(Extinguisher(
+      serialNumber: 'SN-SCOPE-B',
+      inventoryNumber: '1234005',
+      type: ExtinguisherType.vp,
+      capacityLiters: 5,
+      floorId: floorBId,
+    ));
+
+    final csvText = await CsvService.buildCsv(divisionId: divisionAId);
+
+    expect(csvText, contains('SN-SCOPE-A'));
+    expect(csvText, isNot(contains('SN-SCOPE-B')));
+  });
+
   test('імпорт CSV додає вогнегасник у наявний кабінет', () async {
     final db = DatabaseService.instance;
     final divisionId = await db.insertDivision(const Division(name: 'Управління Імпорт'));

@@ -25,11 +25,17 @@ class SummaryData {
 }
 
 class FloorSummary {
+  final String divisionName;
   final String buildingName;
   final String floorName;
   final FloorCalculation calc;
 
-  FloorSummary({required this.buildingName, required this.floorName, required this.calc});
+  FloorSummary({
+    required this.divisionName,
+    required this.buildingName,
+    required this.floorName,
+    required this.calc,
+  });
 }
 
 class _SummaryScreenState extends State<SummaryScreen> {
@@ -45,6 +51,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
   Future<SummaryData> _load() async {
     final db = DatabaseService.instance;
     final buildings = await db.getBuildings();
+    final divisions = await db.getDivisions();
+    final divisionNameById = {for (final d in divisions) d.id!: d.name};
     final data = SummaryData();
 
     for (final Building building in buildings) {
@@ -70,7 +78,12 @@ class _SummaryScreenState extends State<SummaryScreen> {
           data.extinguisherCounts.update(req.extinguisherClass, (v) => v + 1, ifAbsent: () => 1);
           data.totalMissingRoomExtinguishers += req.shortageCount;
         }
-        data.floors.add(FloorSummary(buildingName: building.name, floorName: floor.name, calc: calc));
+        data.floors.add(FloorSummary(
+          divisionName: divisionNameById[building.divisionId] ?? '',
+          buildingName: building.name,
+          floorName: floor.name,
+          calc: calc,
+        ));
       }
     }
 
@@ -186,16 +199,24 @@ class _SummaryScreenState extends State<SummaryScreen> {
                 Card(
                   margin: const EdgeInsets.only(top: 8),
                   child: ListTile(
-                    title: Text('${floorSummary.buildingName} — ${floorSummary.floorName}'),
-                    subtitle: Text(
-                      'Залишкова площа: ${floorSummary.calc.remainingArea.toStringAsFixed(0)} м² · '
-                      'потрібно: ${floorSummary.calc.requiredLiters.toStringAsFixed(0)} л · '
-                      'наявно: ${floorSummary.calc.assignedCapacityLiters.toStringAsFixed(1)} од.'
-                      '${floorSummary.calc.shortageLiters > 0 ? " · недостача: ${floorSummary.calc.shortageLiters.toStringAsFixed(1)} од." : ""}\n'
-                      'кабінетів з ПК: ${floorSummary.calc.computerRooms.length}'
-                      '${floorSummary.calc.computerRooms.any((r) => r.shortageCount > 0) ? " (бракує вогнегасників у ${floorSummary.calc.computerRooms.where((r) => r.shortageCount > 0).length})" : ""}',
+                    title: Text('${floorSummary.divisionName} / ${floorSummary.buildingName} — ${floorSummary.floorName}'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Залишкова площа: ${floorSummary.calc.remainingArea.toStringAsFixed(0)} м²'),
+                        Text('Потрібно: ${floorSummary.calc.requiredLiters.toStringAsFixed(0)} л'),
+                        Text('Наявно: ${floorSummary.calc.assignedCapacityLiters.toStringAsFixed(1)} од.'),
+                        if (floorSummary.calc.shortageLiters > 0)
+                          Text(
+                            'Недостача: ${floorSummary.calc.shortageLiters.toStringAsFixed(1)} од.',
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                        Text(
+                          'Кабінетів з ПК: ${floorSummary.calc.computerRooms.length}'
+                          '${floorSummary.calc.computerRooms.any((r) => r.shortageCount > 0) ? " (бракує вогнегасників у ${floorSummary.calc.computerRooms.where((r) => r.shortageCount > 0).length})" : ""}',
+                        ),
+                      ],
                     ),
-                    isThreeLine: true,
                   ),
                 ),
             ],

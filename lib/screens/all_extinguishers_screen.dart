@@ -165,8 +165,33 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
     }).toList();
   }
 
+  /// Опис поточного рівня фільтра для назви файлу й підпису — щоб звіти з
+  /// різних рівнів (усі управління / одне управління / будівля / поверх /
+  /// кабінет) було видно з самої назви файлу.
+  String get _scopeSuffix {
+    if (_filterRoomId != null) {
+      final room = _computerRoomsByFloor[_filterFloorId]?.firstWhere((r) => r.id == _filterRoomId);
+      return _sanitize(room?.name ?? 'кабінет');
+    }
+    if (_filterFloorId != null) {
+      final floor = _floorsByBuilding[_filterBuildingId]?.firstWhere((f) => f.id == _filterFloorId);
+      return _sanitize(floor?.name ?? 'поверх');
+    }
+    if (_filterBuildingId != null) {
+      final building = _buildingsByDivision[_filterDivisionId]?.firstWhere((b) => b.id == _filterBuildingId);
+      return _sanitize(building?.name ?? 'будівля');
+    }
+    if (_filterDivisionId != null) {
+      final division = _divisions.firstWhere((d) => d.id == _filterDivisionId);
+      return _sanitize(division.name);
+    }
+    return 'Усі_управління';
+  }
+
+  String _sanitize(String name) => name.trim().replaceAll(RegExp(r'\s+'), '_');
+
   Future<void> _exportCsv() async {
-    final defaultName = 'Вогнегасники_${_formatTimestamp(DateTime.now())}';
+    final defaultName = 'Вогнегасники_${_scopeSuffix}_${_formatTimestamp(DateTime.now())}';
     final controller = TextEditingController(text: defaultName);
     final fileName = await showDialog<String>(
       context: context,
@@ -192,7 +217,12 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
     if (fileName == null) return;
     if (!mounted) return;
 
-    final csvText = await CsvService.buildCsv();
+    final csvText = await CsvService.buildCsv(
+      divisionId: _filterDivisionId,
+      buildingId: _filterBuildingId,
+      floorId: _filterFloorId,
+      roomId: _filterRoomId,
+    );
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/$fileName.csv');
     await file.writeAsString(csvText);
@@ -344,12 +374,14 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
                                   '№${entry.extinguisher.id} · ${entry.extinguisher.type.code} · '
                                   '${entry.extinguisher.capacityLiters.toStringAsFixed(1)} ${entry.extinguisher.type.unit}',
                                 ),
-                                subtitle: Text(
-                                  '${entry.contextLabel}\n'
-                                  'Заводський: ${entry.extinguisher.serialNumber} · '
-                                  'Інвентарний: ${entry.extinguisher.inventoryNumber}',
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(entry.contextLabel),
+                                    Text('Заводський: ${entry.extinguisher.serialNumber}'),
+                                    Text('Інвентарний: ${entry.extinguisher.inventoryNumber}'),
+                                  ],
                                 ),
-                                isThreeLine: true,
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [

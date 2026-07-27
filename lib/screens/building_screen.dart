@@ -6,6 +6,7 @@ import '../models/room.dart';
 import '../services/calculation_service.dart';
 import '../services/database_service.dart';
 import '../widgets/confirm_delete.dart';
+import 'all_extinguishers_screen.dart';
 import 'floor_screen.dart';
 
 class BuildingScreen extends StatefulWidget {
@@ -114,6 +115,22 @@ class _BuildingScreenState extends State<BuildingScreen> {
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               children: [
+                ListTile(
+                  leading: const Icon(Icons.local_fire_department_outlined),
+                  title: const Text('Вогнегасники будівлі'),
+                  subtitle: const Text('Перегляд, додавання, редагування, CSV'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AllExtinguishersScreen(initialBuildingId: widget.building.id),
+                      ),
+                    );
+                    _reload();
+                  },
+                ),
+                const Divider(height: 1),
                 if (_floors.isEmpty)
                   const Padding(
                     padding: EdgeInsets.all(16),
@@ -126,9 +143,13 @@ class _BuildingScreenState extends State<BuildingScreen> {
                     return ListTile(
                       leading: const Icon(Icons.layers),
                       title: Text(floor.name),
-                      subtitle: Text(
-                        '${floor.totalArea.toStringAsFixed(0)} м² · кабінетів з ПК: ${calc.computerRooms.length} · '
-                        'потрібно л. на решту: ${calc.requiredLiters.toStringAsFixed(0)}',
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('${floor.totalArea.toStringAsFixed(0)} м²'),
+                          Text('Кабінетів з ПК: ${calc.computerRooms.length}'),
+                          Text('Потрібно л. на решту: ${calc.requiredLiters.toStringAsFixed(0)}'),
+                        ],
                       ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
