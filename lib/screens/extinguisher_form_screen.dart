@@ -5,6 +5,7 @@ import '../models/extinguisher.dart';
 import '../models/extinguisher_model_catalog.dart';
 import '../models/extinguisher_type.dart';
 import '../services/database_service.dart';
+import '../widgets/confirm_delete.dart';
 
 class ExtinguisherFormScreen extends StatefulWidget {
   final int? roomId;
@@ -68,6 +69,7 @@ class _ExtinguisherFormScreenState extends State<ExtinguisherFormScreen> {
 
   Future<void> _delete() async {
     if (widget.extinguisher?.id == null) return;
+    if (!await confirmDelete(context, 'вогнегасник №${widget.extinguisher!.id}')) return;
     await DatabaseService.instance.deleteExtinguisher(widget.extinguisher!.id!);
     if (!mounted) return;
     Navigator.pop(context);

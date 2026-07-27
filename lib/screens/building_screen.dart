@@ -5,6 +5,7 @@ import '../models/floor.dart';
 import '../models/room.dart';
 import '../services/calculation_service.dart';
 import '../services/database_service.dart';
+import '../widgets/confirm_delete.dart';
 import 'floor_screen.dart';
 
 class BuildingScreen extends StatefulWidget {
@@ -100,6 +101,7 @@ class _BuildingScreenState extends State<BuildingScreen> {
   }
 
   Future<void> _deleteFloor(Floor floor) async {
+    if (!await confirmDelete(context, floor.name)) return;
     await _db.deleteFloor(floor.id!);
     _reload();
   }

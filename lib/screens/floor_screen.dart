@@ -5,6 +5,7 @@ import '../models/floor.dart';
 import '../models/room.dart';
 import '../services/calculation_service.dart';
 import '../services/database_service.dart';
+import '../widgets/confirm_delete.dart';
 import 'all_extinguishers_screen.dart';
 import 'room_form_screen.dart';
 
@@ -49,6 +50,7 @@ class _FloorScreenState extends State<FloorScreen> {
   }
 
   Future<void> _deleteRoom(Room room) async {
+    if (!await confirmDelete(context, room.name)) return;
     await _db.deleteRoom(room.id!);
     _reload();
   }

@@ -1,16 +1,25 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../models/building.dart';
+import '../models/division.dart';
 import '../models/extinguisher.dart';
 import '../models/extinguisher_type.dart';
 import '../models/floor.dart';
 import '../models/room.dart';
+import '../services/csv_service.dart';
 import '../services/database_service.dart';
+import '../widgets/confirm_delete.dart';
 import 'extinguisher_form_screen.dart';
 import 'select_extinguisher_target_screen.dart';
 
 class ExtinguisherEntry {
   final Extinguisher extinguisher;
+  final int divisionId;
   final int buildingId;
   final int floorId;
   final int? roomId;
@@ -19,6 +28,7 @@ class ExtinguisherEntry {
 
   const ExtinguisherEntry({
     required this.extinguisher,
+    required this.divisionId,
     required this.buildingId,
     required this.floorId,
     required this.roomId,
@@ -28,12 +38,14 @@ class ExtinguisherEntry {
 }
 
 class AllExtinguishersScreen extends StatefulWidget {
+  final int? initialDivisionId;
   final int? initialBuildingId;
   final int? initialFloorId;
   final int? initialRoomId;
 
   const AllExtinguishersScreen({
     super.key,
+    this.initialDivisionId,
     this.initialBuildingId,
     this.initialFloorId,
     this.initialRoomId,
@@ -46,11 +58,13 @@ class AllExtinguishersScreen extends StatefulWidget {
 class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
   final _db = DatabaseService.instance;
   bool _loading = true;
-  List<Building> _buildings = [];
+  List<Division> _divisions = [];
+  Map<int, List<Building>> _buildingsByDivision = {};
   Map<int, List<Floor>> _floorsByBuilding = {};
   Map<int, List<Room>> _computerRoomsByFloor = {};
   List<ExtinguisherEntry> _allEntries = [];
 
+  int? _filterDivisionId;
   int? _filterBuildingId;
   int? _filterFloorId;
   int? _filterRoomId;
@@ -58,6 +72,7 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
   @override
   void initState() {
     super.initState();
+    _filterDivisionId = widget.initialDivisionId;
     _filterBuildingId = widget.initialBuildingId;
     _filterFloorId = widget.initialFloorId;
     _filterRoomId = widget.initialRoomId;
@@ -65,50 +80,68 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
   }
 
   Future<void> _reload() async {
-    final buildings = await _db.getBuildings();
+    final divisions = await _db.getDivisions();
     final allowedGeneralTypes = await _db.getAllowedGeneralTypes();
+    final buildingsByDivision = <int, List<Building>>{};
     final floorsByBuilding = <int, List<Floor>>{};
     final computerRoomsByFloor = <int, List<Room>>{};
     final entries = <ExtinguisherEntry>[];
 
-    for (final Building building in buildings) {
-      final floors = await _db.getFloorsForBuilding(building.id!);
-      floorsByBuilding[building.id!] = floors;
-      for (final Floor floor in floors) {
-        final floorExtinguishers = await _db.getExtinguishersForFloor(floor.id!);
-        for (final e in floorExtinguishers) {
-          entries.add(ExtinguisherEntry(
-            extinguisher: e,
-            buildingId: building.id!,
-            floorId: floor.id!,
-            roomId: null,
-            contextLabel: '${building.name} / ${floor.name} / Загальна площа',
-            allowedTypesForEdit: allowedGeneralTypes,
-          ));
-        }
-
-        final rooms = await _db.getRoomsForFloor(floor.id!);
-        final computerRooms = rooms.where((r) => r.hasComputer).toList();
-        computerRoomsByFloor[floor.id!] = computerRooms;
-        for (final Room room in computerRooms) {
-          final roomExtinguishers = await _db.getExtinguishersForRoom(room.id!);
-          for (final e in roomExtinguishers) {
+    for (final Division division in divisions) {
+      final buildings = await _db.getBuildingsForDivision(division.id!);
+      buildingsByDivision[division.id!] = buildings;
+      for (final Building building in buildings) {
+        final floors = await _db.getFloorsForBuilding(building.id!);
+        floorsByBuilding[building.id!] = floors;
+        for (final Floor floor in floors) {
+          final floorExtinguishers = await _db.getExtinguishersForFloor(floor.id!);
+          for (final e in floorExtinguishers) {
             entries.add(ExtinguisherEntry(
               extinguisher: e,
+              divisionId: division.id!,
               buildingId: building.id!,
               floorId: floor.id!,
-              roomId: room.id,
-              contextLabel: '${building.name} / ${floor.name} / ${room.name}',
-              allowedTypesForEdit: const [ExtinguisherType.vvk],
+              roomId: null,
+              contextLabel: '${division.name} / ${building.name} / ${floor.name} / Загальна площа',
+              allowedTypesForEdit: allowedGeneralTypes,
             ));
           }
+
+          final rooms = await _db.getRoomsForFloor(floor.id!);
+          final computerRooms = rooms.where((r) => r.hasComputer).toList();
+          computerRoomsByFloor[floor.id!] = computerRooms;
+          for (final Room room in computerRooms) {
+            final roomExtinguishers = await _db.getExtinguishersForRoom(room.id!);
+            for (final e in roomExtinguishers) {
+              entries.add(ExtinguisherEntry(
+                extinguisher: e,
+                divisionId: division.id!,
+                buildingId: building.id!,
+                floorId: floor.id!,
+                roomId: room.id,
+                contextLabel: '${division.name} / ${building.name} / ${floor.name} / ${room.name}',
+                allowedTypesForEdit: const [ExtinguisherType.vvk],
+              ));
+            }
+          }
+        }
+      }
+    }
+
+    // Якщо задано лише buildingId (без divisionId) — довизначаємо управління.
+    if (_filterDivisionId == null && _filterBuildingId != null) {
+      for (final entry in buildingsByDivision.entries) {
+        if (entry.value.any((b) => b.id == _filterBuildingId)) {
+          _filterDivisionId = entry.key;
+          break;
         }
       }
     }
 
     if (!mounted) return;
     setState(() {
-      _buildings = buildings;
+      _divisions = divisions;
+      _buildingsByDivision = buildingsByDivision;
       _floorsByBuilding = floorsByBuilding;
       _computerRoomsByFloor = computerRoomsByFloor;
       _allEntries = entries;
@@ -117,12 +150,14 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
   }
 
   Future<void> _delete(Extinguisher e) async {
+    if (!await confirmDelete(context, 'вогнегасник №${e.id}')) return;
     await _db.deleteExtinguisher(e.id!);
     _reload();
   }
 
   List<ExtinguisherEntry> get _filteredEntries {
     return _allEntries.where((entry) {
+      if (_filterDivisionId != null && entry.divisionId != _filterDivisionId) return false;
       if (_filterBuildingId != null && entry.buildingId != _filterBuildingId) return false;
       if (_filterFloorId != null && entry.floorId != _filterFloorId) return false;
       if (_filterRoomId != null && entry.roomId != _filterRoomId) return false;
@@ -130,14 +165,103 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
     }).toList();
   }
 
+  Future<void> _exportCsv() async {
+    final defaultName = 'Вогнегасники_${_formatTimestamp(DateTime.now())}';
+    final controller = TextEditingController(text: defaultName);
+    final fileName = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Експорт у CSV'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Назва файлу'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Скасувати')),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+              context,
+              controller.text.trim().isEmpty ? defaultName : controller.text.trim(),
+            ),
+            child: const Text('Експортувати'),
+          ),
+        ],
+      ),
+    );
+    if (fileName == null) return;
+    if (!mounted) return;
+
+    final csvText = await CsvService.buildCsv();
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/$fileName.csv');
+    await file.writeAsString(csvText);
+
+    if (!mounted) return;
+    await SharePlus.instance.share(
+      ShareParams(files: [XFile(file.path)], text: 'Звіт по вогнегасниках — $fileName'),
+    );
+  }
+
+  String _formatTimestamp(DateTime dt) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${dt.year}-${two(dt.month)}-${two(dt.day)}_${two(dt.hour)}${two(dt.minute)}';
+  }
+
+  Future<void> _importCsv() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+    );
+    if (result == null || result.files.single.path == null) return;
+
+    final file = File(result.files.single.path!);
+    final csvText = await file.readAsString();
+    final importResult = await CsvService.importCsv(csvText);
+    _reload();
+
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Імпорт завершено'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Імпортовано: ${importResult.imported} шт.'),
+              if (importResult.skipped.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('Пропущено (${importResult.skipped.length}):', style: const TextStyle(fontWeight: FontWeight.bold)),
+                for (final s in importResult.skipped)
+                  Padding(padding: const EdgeInsets.only(top: 2), child: Text('• $s')),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Гаразд')),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final buildings = _filterDivisionId != null ? (_buildingsByDivision[_filterDivisionId!] ?? []) : <Building>[];
     final floors = _filterBuildingId != null ? (_floorsByBuilding[_filterBuildingId!] ?? []) : <Floor>[];
     final rooms = _filterFloorId != null ? (_computerRoomsByFloor[_filterFloorId!] ?? []) : <Room>[];
     final entries = _filteredEntries;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Вогнегасники')),
+      appBar: AppBar(
+        title: const Text('Вогнегасники'),
+        actions: [
+          IconButton(icon: const Icon(Icons.file_upload_outlined), tooltip: 'Імпорт CSV', onPressed: _importCsv),
+          IconButton(icon: const Icon(Icons.ios_share), tooltip: 'Експорт / Поділитися', onPressed: _exportCsv),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Column(
@@ -147,17 +271,34 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
                   child: Column(
                     children: [
                       DropdownButtonFormField<int?>(
+                        initialValue: _filterDivisionId,
+                        decoration: const InputDecoration(labelText: 'Управління'),
+                        items: [
+                          const DropdownMenuItem<int?>(value: null, child: Text('Усі управління')),
+                          for (final d in _divisions) DropdownMenuItem<int?>(value: d.id, child: Text(d.name)),
+                        ],
+                        onChanged: (v) => setState(() {
+                          _filterDivisionId = v;
+                          _filterBuildingId = null;
+                          _filterFloorId = null;
+                          _filterRoomId = null;
+                        }),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<int?>(
                         initialValue: _filterBuildingId,
                         decoration: const InputDecoration(labelText: 'Будівля'),
                         items: [
                           const DropdownMenuItem<int?>(value: null, child: Text('Усі будівлі')),
-                          for (final b in _buildings) DropdownMenuItem<int?>(value: b.id, child: Text(b.name)),
+                          for (final b in buildings) DropdownMenuItem<int?>(value: b.id, child: Text(b.name)),
                         ],
-                        onChanged: (v) => setState(() {
-                          _filterBuildingId = v;
-                          _filterFloorId = null;
-                          _filterRoomId = null;
-                        }),
+                        onChanged: _filterDivisionId == null
+                            ? null
+                            : (v) => setState(() {
+                                  _filterBuildingId = v;
+                                  _filterFloorId = null;
+                                  _filterRoomId = null;
+                                }),
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<int?>(
@@ -201,7 +342,7 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
                                 leading: const Icon(Icons.local_fire_department_outlined),
                                 title: Text(
                                   '№${entry.extinguisher.id} · ${entry.extinguisher.type.code} · '
-                                  '${entry.extinguisher.capacityLiters.toStringAsFixed(1)} ${entry.extinguisher.type.unit}',
+                                  '${entry.extinguisher.capacityLiters.toStringAsFixed(1)} ${entry.extinguisher.type.unit}',
                                 ),
                                 subtitle: Text(
                                   '${entry.contextLabel}\n'
@@ -248,7 +389,9 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
         onPressed: () async {
           await Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const SelectExtinguisherTargetScreen()),
+            MaterialPageRoute(
+              builder: (context) => SelectExtinguisherTargetScreen(initialDivisionId: _filterDivisionId),
+            ),
           );
           _reload();
         },

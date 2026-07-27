@@ -2,6 +2,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/building.dart';
+import '../models/division.dart';
 import '../models/extinguisher.dart';
 import '../models/extinguisher_type.dart';
 import '../models/floor.dart';
@@ -9,6 +10,7 @@ import '../models/room.dart';
 import '../models/territory.dart';
 
 const String _settingsKeyGeneralAllowedTypes = 'general_allowed_types';
+const String _defaultDivisionName = 'Без управління';
 
 class DatabaseService {
   DatabaseService._();
@@ -26,12 +28,20 @@ class DatabaseService {
     final path = join(dbPath, 'vohnegasnyky.db');
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: (db, version) async {
+        await db.execute('''
+          CREATE TABLE divisions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL
+          )
+        ''');
         await db.execute('''
           CREATE TABLE buildings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL
+            divisionId INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            FOREIGN KEY (divisionId) REFERENCES divisions (id) ON DELETE CASCADE
           )
         ''');
         await db.execute('''
@@ -56,8 +66,10 @@ class DatabaseService {
         await db.execute('''
           CREATE TABLE territories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            divisionId INTEGER NOT NULL,
             name TEXT NOT NULL,
-            area REAL NOT NULL
+            area REAL NOT NULL,
+            FOREIGN KEY (divisionId) REFERENCES divisions (id) ON DELETE CASCADE
           )
         ''');
         await _createExtinguisherTables(db);
@@ -65,6 +77,9 @@ class DatabaseService {
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           await _createExtinguisherTables(db);
+        }
+        if (oldVersion < 3) {
+          await _migrateToDivisions(db);
         }
       },
       onConfigure: (db) async {
@@ -100,6 +115,62 @@ class DatabaseService {
     );
   }
 
+  /// Додає новий рівень ієрархії "Управління" над будівлями й територіями.
+  /// Наявні будівлі/території (без управління) переносяться в
+  /// автоматично створене управління-заглушку, щоб дані не загубились.
+  Future<void> _migrateToDivisions(Database db) async {
+    await db.execute('''
+      CREATE TABLE divisions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL
+      )
+    ''');
+    await db.execute('ALTER TABLE buildings ADD COLUMN divisionId INTEGER');
+    await db.execute('ALTER TABLE territories ADD COLUMN divisionId INTEGER');
+
+    final existingBuildings = await db.query('buildings');
+    final existingTerritories = await db.query('territories');
+    if (existingBuildings.isNotEmpty || existingTerritories.isNotEmpty) {
+      final defaultDivisionId = await db.insert('divisions', {'name': _defaultDivisionName});
+      await db.update('buildings', {'divisionId': defaultDivisionId}, where: 'divisionId IS NULL');
+      await db.update('territories', {'divisionId': defaultDivisionId}, where: 'divisionId IS NULL');
+    }
+  }
+
+  // Divisions
+  Future<int> insertDivision(Division division) async {
+    final db = await database;
+    return db.insert('divisions', division.toMap()..remove('id'));
+  }
+
+  Future<int> updateDivision(Division division) async {
+    final db = await database;
+    return db.update('divisions', division.toMap(), where: 'id = ?', whereArgs: [division.id]);
+  }
+
+  Future<int> deleteDivision(int id) async {
+    final db = await database;
+    return db.delete('divisions', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<Division>> getDivisions() async {
+    final db = await database;
+    final rows = await db.query('divisions', orderBy: 'name');
+    return rows.map(Division.fromMap).toList();
+  }
+
+  /// Знаходить управління за назвою (регістронезалежно, порівняння в Dart —
+  /// SQLite LOWER() не працює для кирилиці) або створює нове.
+  Future<int> findOrCreateDivision(String name) async {
+    final db = await database;
+    final rows = await db.query('divisions');
+    final target = name.toLowerCase();
+    for (final row in rows) {
+      if ((row['name'] as String).toLowerCase() == target) return row['id'] as int;
+    }
+    return db.insert('divisions', {'name': name});
+  }
+
   // Buildings
   Future<int> insertBuilding(Building building) async {
     final db = await database;
@@ -116,10 +187,27 @@ class DatabaseService {
     return db.delete('buildings', where: 'id = ?', whereArgs: [id]);
   }
 
+  Future<List<Building>> getBuildingsForDivision(int divisionId) async {
+    final db = await database;
+    final rows = await db.query('buildings', where: 'divisionId = ?', whereArgs: [divisionId], orderBy: 'name');
+    return rows.map(Building.fromMap).toList();
+  }
+
   Future<List<Building>> getBuildings() async {
     final db = await database;
     final rows = await db.query('buildings', orderBy: 'name');
     return rows.map(Building.fromMap).toList();
+  }
+
+  /// Знаходить будівлю за назвою в межах управління або створює нову.
+  Future<int> findOrCreateBuilding(int divisionId, String name) async {
+    final db = await database;
+    final rows = await db.query('buildings', where: 'divisionId = ?', whereArgs: [divisionId]);
+    final target = name.toLowerCase();
+    for (final row in rows) {
+      if ((row['name'] as String).toLowerCase() == target) return row['id'] as int;
+    }
+    return db.insert('buildings', {'divisionId': divisionId, 'name': name});
   }
 
   // Floors
@@ -150,6 +238,19 @@ class DatabaseService {
     return rows.map(Floor.fromMap).toList();
   }
 
+  /// Знаходить поверх за назвою в межах будівлі. НЕ створює новий — площа
+  /// поверху невідома з CSV, тому поверх має вже існувати на приймаючій
+  /// стороні перед імпортом.
+  Future<Floor?> findFloorByName(int buildingId, String name) async {
+    final db = await database;
+    final rows = await db.query('floors', where: 'buildingId = ?', whereArgs: [buildingId]);
+    final target = name.toLowerCase();
+    for (final row in rows) {
+      if ((row['name'] as String).toLowerCase() == target) return Floor.fromMap(row);
+    }
+    return null;
+  }
+
   // Rooms
   Future<int> insertRoom(Room room) async {
     final db = await database;
@@ -178,6 +279,18 @@ class DatabaseService {
     return rows.map(Room.fromMap).toList();
   }
 
+  /// Знаходить кабінет за назвою в межах поверху. НЕ створює новий — площа
+  /// кабінету невідома з CSV.
+  Future<Room?> findRoomByName(int floorId, String name) async {
+    final db = await database;
+    final rows = await db.query('rooms', where: 'floorId = ?', whereArgs: [floorId]);
+    final target = name.toLowerCase();
+    for (final row in rows) {
+      if ((row['name'] as String).toLowerCase() == target) return Room.fromMap(row);
+    }
+    return null;
+  }
+
   // Territories
   Future<int> insertTerritory(Territory territory) async {
     final db = await database;
@@ -192,6 +305,12 @@ class DatabaseService {
   Future<int> deleteTerritory(int id) async {
     final db = await database;
     return db.delete('territories', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<Territory>> getTerritoriesForDivision(int divisionId) async {
+    final db = await database;
+    final rows = await db.query('territories', where: 'divisionId = ?', whereArgs: [divisionId], orderBy: 'name');
+    return rows.map(Territory.fromMap).toList();
   }
 
   Future<List<Territory>> getTerritories() async {

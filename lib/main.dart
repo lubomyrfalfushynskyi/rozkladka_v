@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'screens/home_screen.dart';
+import 'screens/division_list_screen.dart';
 
 void main() {
   runApp(const VohnegasnykyApp());
@@ -14,7 +14,7 @@ class VohnegasnykyApp extends StatelessWidget {
     return MaterialApp(
       title: 'РозкладкаВ',
       theme: ThemeData(colorSchemeSeed: Colors.red, useMaterial3: true),
-      home: const HomeScreen(),
+      home: const DivisionListScreen(),
     );
   }
 }

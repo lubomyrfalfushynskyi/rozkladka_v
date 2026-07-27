@@ -142,12 +142,12 @@ void main() {
 
   group('calculateTerritory', () {
     test('рівно кратна площа', () {
-      final territory = const Territory(id: 1, name: 'Двір', area: 10000);
+      final territory = const Territory(id: 1, divisionId: 1, name: 'Двір', area: 10000);
       expect(CalculationService.calculateTerritory(territory).requiredShields, 2);
     });
 
     test('нерівна площа округлюється вгору', () {
-      final territory = const Territory(id: 1, name: 'Двір', area: 10001);
+      final territory = const Territory(id: 1, divisionId: 1, name: 'Двір', area: 10001);
       expect(CalculationService.calculateTerritory(territory).requiredShields, 3);
     });
   });

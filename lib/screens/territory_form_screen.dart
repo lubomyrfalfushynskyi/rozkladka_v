@@ -3,11 +3,14 @@ import 'package:flutter/material.dart';
 import '../models/territory.dart';
 import '../services/calculation_service.dart';
 import '../services/database_service.dart';
+import '../widgets/confirm_delete.dart';
 
 class TerritoryFormScreen extends StatefulWidget {
+  final int? divisionId;
   final Territory? territory;
 
-  const TerritoryFormScreen({super.key, this.territory});
+  const TerritoryFormScreen({super.key, this.divisionId, this.territory})
+      : assert(divisionId != null || territory != null, 'Потрібен divisionId для нової території');
 
   @override
   State<TerritoryFormScreen> createState() => _TerritoryFormScreenState();
@@ -34,6 +37,7 @@ class _TerritoryFormScreenState extends State<TerritoryFormScreen> {
     final db = DatabaseService.instance;
     final territory = Territory(
       id: widget.territory?.id,
+      divisionId: widget.territory?.divisionId ?? widget.divisionId!,
       name: _nameController.text.trim(),
       area: _parsedArea!,
     );
@@ -48,6 +52,7 @@ class _TerritoryFormScreenState extends State<TerritoryFormScreen> {
 
   Future<void> _delete() async {
     if (widget.territory?.id == null) return;
+    if (!await confirmDelete(context, widget.territory!.name)) return;
     await DatabaseService.instance.deleteTerritory(widget.territory!.id!);
     if (!mounted) return;
     Navigator.pop(context);
@@ -56,9 +61,11 @@ class _TerritoryFormScreenState extends State<TerritoryFormScreen> {
   @override
   Widget build(BuildContext context) {
     final area = _parsedArea;
-    final preview = (area != null && area > 0) ? CalculationService.calculateTerritory(
-      Territory(name: '', area: area),
-    ).requiredShields : null;
+    final preview = (area != null && area > 0)
+        ? CalculationService.calculateTerritory(
+            Territory(divisionId: widget.divisionId ?? widget.territory?.divisionId ?? 0, name: '', area: area),
+          ).requiredShields
+        : null;
 
     return Scaffold(
       appBar: AppBar(

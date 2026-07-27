@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 
 import '../models/building.dart';
+import '../models/division.dart';
 import '../models/extinguisher_type.dart';
 import '../models/floor.dart';
 import '../models/room.dart';
 import '../services/database_service.dart';
 import 'extinguisher_form_screen.dart';
 
-/// Майстер вибору місця прив'язки нового вогнегасника: будівля → поверх →
-/// загальна площа поверху або конкретний кабінет з ПК.
+/// Майстер вибору місця прив'язки нового вогнегасника: управління →
+/// будівля → поверх → загальна площа поверху або конкретний кабінет з ПК.
 class SelectExtinguisherTargetScreen extends StatefulWidget {
-  const SelectExtinguisherTargetScreen({super.key});
+  final int? initialDivisionId;
+
+  const SelectExtinguisherTargetScreen({super.key, this.initialDivisionId});
 
   @override
   State<SelectExtinguisherTargetScreen> createState() => _SelectExtinguisherTargetScreenState();
@@ -23,11 +26,13 @@ class _GeneralAreaTarget {
 class _SelectExtinguisherTargetScreenState extends State<SelectExtinguisherTargetScreen> {
   final _db = DatabaseService.instance;
   bool _loading = true;
-  List<Building> _buildings = [];
+  List<Division> _divisions = [];
+  Map<int, List<Building>> _buildingsByDivision = {};
   Map<int, List<Floor>> _floorsByBuilding = {};
   Map<int, List<Room>> _computerRoomsByFloor = {};
   List<ExtinguisherType> _allowedGeneralTypes = [ExtinguisherType.vp];
 
+  int? _selectedDivisionId;
   Building? _selectedBuilding;
   Floor? _selectedFloor;
   Object? _selectedTarget; // Room or _GeneralAreaTarget
@@ -35,25 +40,32 @@ class _SelectExtinguisherTargetScreenState extends State<SelectExtinguisherTarge
   @override
   void initState() {
     super.initState();
+    _selectedDivisionId = widget.initialDivisionId;
     _load();
   }
 
   Future<void> _load() async {
-    final buildings = await _db.getBuildings();
+    final divisions = await _db.getDivisions();
+    final buildingsByDivision = <int, List<Building>>{};
     final floorsByBuilding = <int, List<Floor>>{};
     final computerRoomsByFloor = <int, List<Room>>{};
-    for (final building in buildings) {
-      final floors = await _db.getFloorsForBuilding(building.id!);
-      floorsByBuilding[building.id!] = floors;
-      for (final floor in floors) {
-        final rooms = await _db.getRoomsForFloor(floor.id!);
-        computerRoomsByFloor[floor.id!] = rooms.where((r) => r.hasComputer).toList();
+    for (final division in divisions) {
+      final buildings = await _db.getBuildingsForDivision(division.id!);
+      buildingsByDivision[division.id!] = buildings;
+      for (final building in buildings) {
+        final floors = await _db.getFloorsForBuilding(building.id!);
+        floorsByBuilding[building.id!] = floors;
+        for (final floor in floors) {
+          final rooms = await _db.getRoomsForFloor(floor.id!);
+          computerRoomsByFloor[floor.id!] = rooms.where((r) => r.hasComputer).toList();
+        }
       }
     }
     final allowedTypes = await _db.getAllowedGeneralTypes();
     if (!mounted) return;
     setState(() {
-      _buildings = buildings;
+      _divisions = divisions;
+      _buildingsByDivision = buildingsByDivision;
       _floorsByBuilding = floorsByBuilding;
       _computerRoomsByFloor = computerRoomsByFloor;
       _allowedGeneralTypes = allowedTypes;
@@ -79,16 +91,17 @@ class _SelectExtinguisherTargetScreenState extends State<SelectExtinguisherTarge
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    if (_buildings.isEmpty) {
+    if (_divisions.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('Новий вогнегасник')),
         body: const Padding(
           padding: EdgeInsets.all(16),
-          child: Text('Спочатку додай хоча б одну будівлю з поверхом на головному екрані.'),
+          child: Text('Спочатку додай хоча б одне управління з будівлею та поверхом на головному екрані.'),
         ),
       );
     }
 
+    final buildings = _selectedDivisionId != null ? (_buildingsByDivision[_selectedDivisionId!] ?? []) : <Building>[];
     final floors = _selectedBuilding != null ? (_floorsByBuilding[_selectedBuilding!.id!] ?? []) : <Floor>[];
     final computerRooms = _selectedFloor != null ? (_computerRoomsByFloor[_selectedFloor!.id!] ?? []) : <Room>[];
 
@@ -99,16 +112,33 @@ class _SelectExtinguisherTargetScreenState extends State<SelectExtinguisherTarge
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            DropdownButtonFormField<Building>(
-              initialValue: _selectedBuilding,
-              decoration: const InputDecoration(labelText: 'Будівля'),
-              items: _buildings.map((b) => DropdownMenuItem(value: b, child: Text(b.name))).toList(),
-              onChanged: (b) => setState(() {
-                _selectedBuilding = b;
+            DropdownButtonFormField<int?>(
+              initialValue: _selectedDivisionId,
+              decoration: const InputDecoration(labelText: 'Управління'),
+              items: [
+                for (final d in _divisions) DropdownMenuItem<int?>(value: d.id, child: Text(d.name)),
+              ],
+              onChanged: (v) => setState(() {
+                _selectedDivisionId = v;
+                _selectedBuilding = null;
                 _selectedFloor = null;
                 _selectedTarget = null;
               }),
             ),
+            const SizedBox(height: 12),
+            if (_selectedDivisionId != null)
+              buildings.isEmpty
+                  ? const Text('У цьому управлінні ще немає будівель')
+                  : DropdownButtonFormField<Building>(
+                      initialValue: _selectedBuilding,
+                      decoration: const InputDecoration(labelText: 'Будівля'),
+                      items: buildings.map((b) => DropdownMenuItem(value: b, child: Text(b.name))).toList(),
+                      onChanged: (b) => setState(() {
+                        _selectedBuilding = b;
+                        _selectedFloor = null;
+                        _selectedTarget = null;
+                      }),
+                    ),
             const SizedBox(height: 12),
             if (_selectedBuilding != null)
               floors.isEmpty

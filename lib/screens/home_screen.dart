@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 
 import '../models/building.dart';
+import '../models/division.dart';
 import '../models/territory.dart';
 import '../services/calculation_service.dart';
 import '../services/database_service.dart';
+import '../widgets/confirm_delete.dart';
 import 'all_extinguishers_screen.dart';
 import 'building_screen.dart';
 import 'select_extinguisher_target_screen.dart';
-import 'settings_screen.dart';
-import 'summary_screen.dart';
 import 'territory_form_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final Division division;
+
+  const HomeScreen({super.key, required this.division});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -32,14 +34,26 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _reload() async {
-    final buildings = await _db.getBuildings();
-    final territories = await _db.getTerritories();
-    final extinguishers = await _db.getAllExtinguishers();
+    final buildings = await _db.getBuildingsForDivision(widget.division.id!);
+    final territories = await _db.getTerritoriesForDivision(widget.division.id!);
+
+    // Кількість вогнегасників саме цього управління — рахуємо через будівлі/поверхи.
+    var count = 0;
+    for (final building in buildings) {
+      final floors = await _db.getFloorsForBuilding(building.id!);
+      for (final floor in floors) {
+        count += (await _db.getExtinguishersForFloor(floor.id!)).length;
+        final rooms = await _db.getRoomsForFloor(floor.id!);
+        for (final room in rooms.where((r) => r.hasComputer)) {
+          count += (await _db.getExtinguishersForRoom(room.id!)).length;
+        }
+      }
+    }
     if (!mounted) return;
     setState(() {
       _buildings = buildings;
       _territories = territories;
-      _extinguisherCount = extinguishers.length;
+      _extinguisherCount = count;
       _loading = false;
     });
   }
@@ -65,11 +79,12 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (name == null || name.isEmpty) return;
-    await _db.insertBuilding(Building(name: name));
+    await _db.insertBuilding(Building(divisionId: widget.division.id!, name: name));
     _reload();
   }
 
   Future<void> _deleteBuilding(Building building) async {
+    if (!await confirmDelete(context, building.name)) return;
     await _db.deleteBuilding(building.id!);
     _reload();
   }
@@ -80,30 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('РозкладкаВ'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.summarize),
-            tooltip: 'Зведений звіт',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const SummaryScreen()),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Налаштування',
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SettingsScreen()),
-              );
-              _reload();
-            },
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(widget.division.name)),
       body: ListView(
         children: [
           const Padding(
@@ -145,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 leading: const Icon(Icons.terrain),
                 title: Text(territory.name),
                 subtitle: Text(
-                  '${territory.area.toStringAsFixed(0)} м² · потрібно щитів: ${calc.requiredShields}',
+                  '${territory.area.toStringAsFixed(0)} м² · потрібно щитів: ${calc.requiredShields}',
                 ),
                 onTap: () async {
                   await Navigator.push(
@@ -163,13 +155,15 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           ListTile(
             leading: const Icon(Icons.local_fire_department_outlined),
-            title: Text('Усього зареєстровано: $_extinguisherCount шт.'),
+            title: Text('Усього зареєстровано: $_extinguisherCount шт.'),
             subtitle: const Text('Перегляд, додавання, редагування'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () async {
               await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const AllExtinguishersScreen()),
+                MaterialPageRoute(
+                  builder: (context) => AllExtinguishersScreen(initialDivisionId: widget.division.id),
+                ),
               );
               _reload();
             },
@@ -188,7 +182,9 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () async {
               await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const SelectExtinguisherTargetScreen()),
+                MaterialPageRoute(
+                  builder: (context) => SelectExtinguisherTargetScreen(initialDivisionId: widget.division.id),
+                ),
               );
               _reload();
             },
@@ -201,7 +197,9 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () async {
               await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const TerritoryFormScreen()),
+                MaterialPageRoute(
+                  builder: (context) => TerritoryFormScreen(divisionId: widget.division.id),
+                ),
               );
               _reload();
             },
