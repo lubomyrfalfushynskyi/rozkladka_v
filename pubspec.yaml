@@ -38,9 +38,19 @@ dependencies:
   sqflite: ^2.4.1
   path: ^1.9.0
   csv: ^8.0.0
-  share_plus: ^13.3.0
-  path_provider: ^2.1.6
-  file_picker: ^3.0.4
+  share_plus: ^12.0.2
+  path_provider: ^2.1.4
+  file_picker: ^8.1.2
+
+dependency_overrides:
+  # path_provider_android 2.3.0+ додав залежність на пакет `jni`, чий
+  # Android Gradle-скрипт несумісний з нашою версією AGP/Kotlin (падає
+  # збірка з "Could not find method kotlin() ... project ':jni'").
+  # 2.2.23 — остання версія без jni, повністю функціональна для наших потреб.
+  path_provider_android: 2.2.23
+  # 2.0.35 вимагає compileSdk 36 у своєму AAR, а file_picker сам захардкодив
+  # compileSdk 34 у власному build.gradle — конфлікт. 2.0.28 сумісна з обома.
+  flutter_plugin_android_lifecycle: 2.0.28
 
 dev_dependencies:
   flutter_test:
