@@ -14,6 +14,7 @@ import '../models/room.dart';
 import '../services/csv_service.dart';
 import '../services/database_service.dart';
 import '../widgets/confirm_delete.dart';
+import '../widgets/page_help.dart';
 import 'extinguisher_form_screen.dart';
 import 'select_extinguisher_target_screen.dart';
 
@@ -288,6 +289,18 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
       appBar: AppBar(
         title: const Text('Вогнегасники'),
         actions: [
+          PageHelpAction(
+            title: 'Вогнегасники',
+            points: [
+              'Фільтри Управління/Будівля/Поверх/Кабінет звужують список каскадно — оберіть рівень, '
+                  'на якому потрібен звіт.',
+              'Експорт формує CSV саме за поточним фільтром (нічого не обрано — звіт по всіх '
+                  'управліннях) і відкриває системне "Поділитися" з файлом.',
+              'Імпорт читає CSV через провідник — управління/будівля створюються автоматично за '
+                  'назвою, а поверх/кабінет мають вже існувати (їхню площу неможливо відновити з CSV).',
+              'Олівець і кошик на записі — редагувати чи видалити конкретний вогнегасник.',
+            ],
+          ),
           IconButton(icon: const Icon(Icons.file_upload_outlined), tooltip: 'Імпорт CSV', onPressed: _importCsv),
           IconButton(icon: const Icon(Icons.ios_share), tooltip: 'Експорт / Поділитися', onPressed: _exportCsv),
         ],

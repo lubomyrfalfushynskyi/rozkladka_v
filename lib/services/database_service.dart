@@ -2,6 +2,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/building.dart';
+import '../models/custom_extinguisher_model.dart';
 import '../models/division.dart';
 import '../models/extinguisher.dart';
 import '../models/extinguisher_type.dart';
@@ -16,6 +17,12 @@ class DatabaseService {
   DatabaseService._();
   static final DatabaseService instance = DatabaseService._();
 
+  /// Ім'я файлу БД. Перевизначається в тестах, щоб різні тестові файли
+  /// (які запускаються паралельно в окремих ізолятах) не ділили один і
+  /// той самий файл на диску через `databaseFactoryFfiNoIsolate` — інакше
+  /// паралельний запуск падає з "database is locked".
+  static String dbFileName = 'vohnegasnyky.db';
+
   Database? _db;
 
   Future<Database> get database async {
@@ -25,10 +32,10 @@ class DatabaseService {
 
   Future<Database> _open() async {
     final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'vohnegasnyky.db');
+    final path = join(dbPath, dbFileName);
     return openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE divisions (
@@ -73,6 +80,7 @@ class DatabaseService {
           )
         ''');
         await _createExtinguisherTables(db);
+        await _createCustomExtinguisherModelsTable(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -80,6 +88,9 @@ class DatabaseService {
         }
         if (oldVersion < 3) {
           await _migrateToDivisions(db);
+        }
+        if (oldVersion < 4) {
+          await _createCustomExtinguisherModelsTable(db);
         }
       },
       onConfigure: (db) async {
@@ -113,6 +124,18 @@ class DatabaseService {
       {'key': _settingsKeyGeneralAllowedTypes, 'value': ExtinguisherType.vp.code},
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  Future<void> _createCustomExtinguisherModelsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE custom_extinguisher_models (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code TEXT NOT NULL,
+        type TEXT NOT NULL,
+        capacity REAL NOT NULL,
+        category TEXT NOT NULL
+      )
+    ''');
   }
 
   /// Додає новий рівень ієрархії "Управління" над будівлями й територіями.
@@ -351,6 +374,23 @@ class DatabaseService {
     final db = await database;
     final rows = await db.query('extinguishers', orderBy: 'id');
     return rows.map(Extinguisher.fromMap).toList();
+  }
+
+  // Custom extinguisher models (номенклатура понад базові 30 моделей)
+  Future<List<CustomExtinguisherModel>> getCustomExtinguisherModels() async {
+    final db = await database;
+    final rows = await db.query('custom_extinguisher_models', orderBy: 'type, capacity');
+    return rows.map(CustomExtinguisherModel.fromMap).toList();
+  }
+
+  Future<int> insertCustomExtinguisherModel(CustomExtinguisherModel model) async {
+    final db = await database;
+    return db.insert('custom_extinguisher_models', model.toMap()..remove('id'));
+  }
+
+  Future<int> deleteCustomExtinguisherModel(int id) async {
+    final db = await database;
+    return db.delete('custom_extinguisher_models', where: 'id = ?', whereArgs: [id]);
   }
 
   // Settings

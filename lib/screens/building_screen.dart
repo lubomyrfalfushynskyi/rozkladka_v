@@ -6,6 +6,7 @@ import '../models/room.dart';
 import '../services/calculation_service.dart';
 import '../services/database_service.dart';
 import '../widgets/confirm_delete.dart';
+import '../widgets/page_help.dart';
 import 'all_extinguishers_screen.dart';
 import 'floor_screen.dart';
 
@@ -110,7 +111,20 @@ class _BuildingScreenState extends State<BuildingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.building.name)),
+      appBar: AppBar(
+        title: Text(widget.building.name),
+        actions: [
+          PageHelpAction(
+            title: widget.building.name,
+            points: [
+              '"Вогнегасники будівлі" — звіт по всіх вогнегасниках цієї будівлі (усі поверхи/кабінети), з CSV.',
+              'Поверхи — натисни, щоб зайти й керувати кабінетами; олівець — редагувати назву/площу; '
+                  'кошик — видалити.',
+              '"+ Поверх" внизу — додати новий поверх.',
+            ],
+          ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(

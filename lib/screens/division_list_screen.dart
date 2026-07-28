@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/division.dart';
 import '../services/database_service.dart';
 import '../widgets/confirm_delete.dart';
+import '../widgets/page_help.dart';
 import 'all_extinguishers_screen.dart';
 import 'home_screen.dart';
 import 'settings_screen.dart';
@@ -35,12 +36,12 @@ class _DivisionListScreenState extends State<DivisionListScreen> {
     });
   }
 
-  Future<void> _addDivision() async {
-    final controller = TextEditingController();
+  Future<void> _addOrEditDivision({Division? division}) async {
+    final controller = TextEditingController(text: division?.name ?? '');
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Нове управління'),
+        title: Text(division == null ? 'Нове управління' : 'Перейменувати управління'),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -50,13 +51,17 @@ class _DivisionListScreenState extends State<DivisionListScreen> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Скасувати')),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Додати'),
+            child: Text(division == null ? 'Додати' : 'Зберегти'),
           ),
         ],
       ),
     );
     if (name == null || name.isEmpty) return;
-    await _db.insertDivision(Division(name: name));
+    if (division == null) {
+      await _db.insertDivision(Division(name: name));
+    } else {
+      await _db.updateDivision(division.copyWith(name: name));
+    }
     _reload();
   }
 
@@ -72,6 +77,19 @@ class _DivisionListScreenState extends State<DivisionListScreen> {
       appBar: AppBar(
         title: const Text('РозкладкаВ'),
         actions: [
+          PageHelpAction(
+            title: 'РозкладкаВ',
+            points: [
+              'Головна сторінка — список Управлінь. Кожне Управління містить свої будівлі й території.',
+              'Натисни на Управління, щоб перейти в нього; олівець — перейменувати; кошик — видалити '
+                  '(з підтвердженням, разом з усім вмістом).',
+              '"+ Управління" внизу — додати нове.',
+              'Іконка вогнегасника вгорі — звіт по вогнегасниках одразу по всіх управліннях, з CSV '
+                  'експортом/імпортом.',
+              'Іконка звіту — зведений розрахунок недостачі по всіх управліннях.',
+              'Іконка шестерні — налаштування (дозволені типи, номенклатура моделей).',
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.local_fire_department_outlined),
             tooltip: 'Вогнегасники (усі управління) — CSV',
@@ -121,9 +139,18 @@ class _DivisionListScreenState extends State<DivisionListScreen> {
                   ListTile(
                     leading: const Icon(Icons.account_balance_outlined),
                     title: Text(division.name),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: () => _deleteDivision(division),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined),
+                          onPressed: () => _addOrEditDivision(division: division),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () => _deleteDivision(division),
+                        ),
+                      ],
                     ),
                     onTap: () => Navigator.push(
                       context,
@@ -136,7 +163,7 @@ class _DivisionListScreenState extends State<DivisionListScreen> {
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.add),
         label: const Text('Управління'),
-        onPressed: _addDivision,
+        onPressed: () => _addOrEditDivision(),
       ),
     );
   }

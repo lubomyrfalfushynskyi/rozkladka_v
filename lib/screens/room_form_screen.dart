@@ -4,6 +4,7 @@ import '../models/floor.dart';
 import '../models/room.dart';
 import '../services/calculation_service.dart';
 import '../services/database_service.dart';
+import '../widgets/page_help.dart';
 
 class RoomFormScreen extends StatefulWidget {
   final Floor floor;
@@ -60,7 +61,20 @@ class _RoomFormScreenState extends State<RoomFormScreen> {
         : null;
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.room == null ? 'Новий кабінет' : 'Редагувати кабінет')),
+      appBar: AppBar(
+        title: Text(widget.room == null ? 'Новий кабінет' : 'Редагувати кабінет'),
+        actions: [
+          PageHelpAction(
+            title: 'Кабінет',
+            points: [
+              'Площа використовується для розрахунку норми вогнегасника.',
+              'Якщо є комп\'ютерна техніка — кабінет обслуговується окремим вогнегасником ВВК за класом, '
+                  'що визначається площею (показується нижче форми).',
+              'Видалити кабінет можна зі списку на сторінці поверху (кошик поруч із записом).',
+            ],
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(

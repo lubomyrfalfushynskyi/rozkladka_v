@@ -34,6 +34,7 @@ class CsvService {
   }) async {
     final db = DatabaseService.instance;
     final rows = <List<String>>[csvHeaders];
+    final customModels = (await db.getCustomExtinguisherModels()).map((c) => c.asModel).toList();
 
     final divisions = await db.getDivisions();
     for (final division in divisions) {
@@ -47,7 +48,7 @@ class CsvService {
           if (roomId == null) {
             final floorExtinguishers = await db.getExtinguishersForFloor(floor.id!);
             for (final e in floorExtinguishers) {
-              rows.add(_row(e, division.name, building.name, floor.name, generalAreaLabel));
+              rows.add(_row(e, division.name, building.name, floor.name, generalAreaLabel, customModels));
             }
           }
           final rooms = await db.getRoomsForFloor(floor.id!);
@@ -55,7 +56,7 @@ class CsvService {
             if (roomId != null && room.id != roomId) continue;
             final roomExtinguishers = await db.getExtinguishersForRoom(room.id!);
             for (final e in roomExtinguishers) {
-              rows.add(_row(e, division.name, building.name, floor.name, room.name));
+              rows.add(_row(e, division.name, building.name, floor.name, room.name, customModels));
             }
           }
         }
@@ -65,8 +66,15 @@ class CsvService {
     return csv.encode(rows);
   }
 
-  static List<String> _row(Extinguisher e, String division, String building, String floor, String room) {
-    final model = ExtinguisherModelCatalog.findByTypeAndCapacity(e.type, e.capacityLiters);
+  static List<String> _row(
+    Extinguisher e,
+    String division,
+    String building,
+    String floor,
+    String room,
+    List<ExtinguisherModel> customModels,
+  ) {
+    final model = ExtinguisherModelCatalog.findByTypeAndCapacityWithCustom(e.type, e.capacityLiters, customModels);
     return [
       e.id?.toString() ?? '',
       division,

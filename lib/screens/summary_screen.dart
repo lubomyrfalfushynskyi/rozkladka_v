@@ -7,6 +7,7 @@ import '../models/room.dart';
 import '../models/territory.dart';
 import '../services/calculation_service.dart';
 import '../services/database_service.dart';
+import '../widgets/page_help.dart';
 
 class SummaryScreen extends StatefulWidget {
   const SummaryScreen({super.key});
@@ -98,7 +99,23 @@ class _SummaryScreenState extends State<SummaryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Зведений звіт')),
+      appBar: AppBar(
+        title: const Text('Зведений звіт'),
+        actions: [
+          PageHelpAction(
+            title: 'Зведений звіт',
+            points: [
+              'Розрахунок по всіх управліннях разом: скільки вогнегасної речовини бракує в звичайних '
+                  'приміщеннях і скільки вогнегасників ВВК бракує в кабінетах з ПК.',
+              'Фільтр за територією нижче — переглянути потрібну кількість щитів по конкретній '
+                  'території замість суми по всіх.',
+              'Деталізація по поверхах внизу — кожен рядок підписаний управлінням/будівлею/поверхом.',
+              'Це лише розрахунок норми — сюди нічого не редагується, зміни вносяться на відповідних '
+                  'сторінках будівель/кабінетів/територій.',
+            ],
+          ),
+        ],
+      ),
       body: FutureBuilder<SummaryData>(
         future: _future,
         builder: (context, snapshot) {

@@ -6,6 +6,7 @@ import '../models/extinguisher_model_catalog.dart';
 import '../models/extinguisher_type.dart';
 import '../services/database_service.dart';
 import '../widgets/confirm_delete.dart';
+import '../widgets/page_help.dart';
 
 class ExtinguisherFormScreen extends StatefulWidget {
   final int? roomId;
@@ -34,6 +35,8 @@ class _ExtinguisherFormScreenState extends State<ExtinguisherFormScreen> {
   late final TextEditingController _inventoryController;
   late ExtinguisherType _type;
   ExtinguisherModel? _model;
+  List<ExtinguisherModel> _customModels = [];
+  bool _loadingModels = true;
 
   @override
   void initState() {
@@ -41,9 +44,24 @@ class _ExtinguisherFormScreenState extends State<ExtinguisherFormScreen> {
     _serialController = TextEditingController(text: widget.extinguisher?.serialNumber ?? '');
     _inventoryController = TextEditingController(text: widget.extinguisher?.inventoryNumber ?? '');
     _type = widget.extinguisher?.type ?? widget.allowedTypes.first;
-    if (widget.extinguisher != null) {
-      _model = ExtinguisherModelCatalog.findByTypeAndCapacity(_type, widget.extinguisher!.capacityLiters);
-    }
+    _loadCustomModels();
+  }
+
+  Future<void> _loadCustomModels() async {
+    final custom = await DatabaseService.instance.getCustomExtinguisherModels();
+    final customAsModels = custom.map((c) => c.asModel).toList();
+    if (!mounted) return;
+    setState(() {
+      _customModels = customAsModels;
+      _loadingModels = false;
+      if (widget.extinguisher != null) {
+        _model = ExtinguisherModelCatalog.findByTypeAndCapacityWithCustom(
+          _type,
+          widget.extinguisher!.capacityLiters,
+          _customModels,
+        );
+      }
+    });
   }
 
   Future<void> _save() async {
@@ -77,11 +95,23 @@ class _ExtinguisherFormScreenState extends State<ExtinguisherFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final models = ExtinguisherModelCatalog.forType(_type);
+    if (_loadingModels) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final models = ExtinguisherModelCatalog.forTypeWithCustom(_type, _customModels);
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.extinguisher == null ? 'Новий вогнегасник' : 'Редагувати вогнегасник'),
         actions: [
+          PageHelpAction(
+            title: 'Вогнегасник',
+            points: [
+              'Модель — обирається зі списку номенклатури (базові + додані у Налаштуваннях); '
+                  'ємність береться з обраної моделі.',
+              'Заводський номер — довільний текст із маркування вогнегасника.',
+              'Інвентарний номер — лише цифри, мінімум 4 (перші 4 — код субрахунку бухобліку).',
+            ],
+          ),
           if (widget.extinguisher != null)
             IconButton(icon: const Icon(Icons.delete_outline), onPressed: _delete),
         ],

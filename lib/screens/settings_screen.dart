@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../models/extinguisher_type.dart';
 import '../services/database_service.dart';
+import '../widgets/page_help.dart';
+import 'extinguisher_catalog_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -44,7 +46,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Налаштування')),
+      appBar: AppBar(
+        title: const Text('Налаштування'),
+        actions: [
+          PageHelpAction(
+            title: 'Налаштування',
+            points: [
+              'Дозволені типи вогнегасників — які типи можна обирати для звичайних приміщень '
+                  '(без комп\'ютерної техніки) і загальної площі поверхів. Обов\'язково хоча б один.',
+              'Кабінети з ПК завжди обслуговуються ВВК — це фіксовано, не налаштовується.',
+              'Номенклатура вогнегасників — перелік моделей у випадаючому списку при додаванні '
+                  'вогнегасника; звідси можна додати чи видалити власні моделі понад базові.',
+            ],
+          ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -82,6 +98,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Text(
                     'Завжди обслуговуються вогнегасником ВВК (вуглекислотним) — '
                     'це фіксоване правило, не налаштовується тут.',
+                  ),
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.local_fire_department_outlined),
+                  title: const Text('Номенклатура вогнегасників'),
+                  subtitle: const Text('Список моделей — додати чи видалити свої'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ExtinguisherCatalogScreen()),
                   ),
                 ),
                 const SizedBox(height: 16),

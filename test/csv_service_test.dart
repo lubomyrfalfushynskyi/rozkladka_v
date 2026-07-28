@@ -3,8 +3,10 @@ import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'package:rozkladka_v/models/building.dart';
+import 'package:rozkladka_v/models/custom_extinguisher_model.dart';
 import 'package:rozkladka_v/models/division.dart';
 import 'package:rozkladka_v/models/extinguisher.dart';
+import 'package:rozkladka_v/models/extinguisher_model_catalog.dart';
 import 'package:rozkladka_v/models/extinguisher_type.dart';
 import 'package:rozkladka_v/models/floor.dart';
 import 'package:rozkladka_v/models/room.dart';
@@ -15,10 +17,13 @@ void main() {
   setUpAll(() async {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfiNoIsolate;
-    // Тестова БД — окремий файл, який чистимо перед кожним прогоном тестів,
+    // Тестова БД — окремий файл (унікальний для цього тестового файлу, щоб
+    // паралельний запуск різних *_test.dart не ділив один файл — інакше
+    // "database is locked"), який чистимо перед кожним прогоном тестів,
     // інакше дані з попередніх запусків "flutter test" накопичуються і
     // плутають пошук за назвою (findOrCreate*).
-    final path = join(await getDatabasesPath(), 'vohnegasnyky.db');
+    DatabaseService.dbFileName = 'vohnegasnyky_csv_test.db';
+    final path = join(await getDatabasesPath(), DatabaseService.dbFileName);
     await databaseFactory.deleteDatabase(path);
   });
 
@@ -73,6 +78,30 @@ void main() {
 
     expect(csvText, contains('SN-SCOPE-A'));
     expect(csvText, isNot(contains('SN-SCOPE-B')));
+  });
+
+  test('експорт показує код кастомної моделі в колонці Модель', () async {
+    final db = DatabaseService.instance;
+    final divisionId = await db.insertDivision(const Division(name: 'Управління Кастом'));
+    final buildingId = await db.insertBuilding(Building(divisionId: divisionId, name: 'Будівля Кастом'));
+    final floorId = await db.insertFloor(Floor(buildingId: buildingId, name: 'Поверх Кастом', totalArea: 100));
+    await db.insertCustomExtinguisherModel(const CustomExtinguisherModel(
+      code: 'ВП-7-Кастом',
+      type: ExtinguisherType.vp,
+      capacity: 7,
+      category: ExtinguisherCategory.portable,
+    ));
+    await db.insertExtinguisher(Extinguisher(
+      serialNumber: 'SN-CUSTOM-1',
+      inventoryNumber: '1234006',
+      type: ExtinguisherType.vp,
+      capacityLiters: 7,
+      floorId: floorId,
+    ));
+
+    final csvText = await CsvService.buildCsv(divisionId: divisionId);
+
+    expect(csvText, contains('ВП-7-Кастом'));
   });
 
   test('імпорт CSV додає вогнегасник у наявний кабінет', () async {

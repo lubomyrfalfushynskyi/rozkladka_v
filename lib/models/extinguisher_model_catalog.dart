@@ -76,12 +76,38 @@ class ExtinguisherModelCatalog {
   static List<ExtinguisherModel> forType(ExtinguisherType type) =>
       all.where((m) => m.type == type).toList();
 
+  /// Базові + користувацькі моделі для типу разом (для випадаючого списку
+  /// у формі вогнегасника). `custom` — вже перетворені в [ExtinguisherModel]
+  /// записи з таблиці `custom_extinguisher_models`.
+  static List<ExtinguisherModel> forTypeWithCustom(ExtinguisherType type, List<ExtinguisherModel> custom) => [
+        ...forType(type),
+        ...custom.where((m) => m.type == type),
+      ];
+
   /// Знаходить модель за типом і ємністю (для відображення вже збережених
   /// записів). Повертає null, якщо значення не відповідає жодній моделі з
   /// номенклатури (напр. старі дані, введені довільним числом до переходу
   /// на список моделей).
   static ExtinguisherModel? findByTypeAndCapacity(ExtinguisherType type, double capacity) {
     for (final model in all) {
+      if (model.type == type && (model.capacity - capacity).abs() < 0.001) {
+        return model;
+      }
+    }
+    return null;
+  }
+
+  /// Те саме, але додатково перевіряє й користувацькі моделі — потрібно
+  /// для CSV-експорту, де колонка "Модель" інакше лишалась би порожньою
+  /// для вогнегасників кастомної моделі.
+  static ExtinguisherModel? findByTypeAndCapacityWithCustom(
+    ExtinguisherType type,
+    double capacity,
+    List<ExtinguisherModel> custom,
+  ) {
+    final base = findByTypeAndCapacity(type, capacity);
+    if (base != null) return base;
+    for (final model in custom) {
       if (model.type == type && (model.capacity - capacity).abs() < 0.001) {
         return model;
       }

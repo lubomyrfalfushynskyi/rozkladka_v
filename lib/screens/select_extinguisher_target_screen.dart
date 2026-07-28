@@ -6,6 +6,7 @@ import '../models/extinguisher_type.dart';
 import '../models/floor.dart';
 import '../models/room.dart';
 import '../services/database_service.dart';
+import '../widgets/page_help.dart';
 import 'extinguisher_form_screen.dart';
 
 /// Майстер вибору місця прив'язки нового вогнегасника: управління →
@@ -106,7 +107,19 @@ class _SelectExtinguisherTargetScreenState extends State<SelectExtinguisherTarge
     final computerRooms = _selectedFloor != null ? (_computerRoomsByFloor[_selectedFloor!.id!] ?? []) : <Room>[];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Новий вогнегасник — обрати місце')),
+      appBar: AppBar(
+        title: const Text('Новий вогнегасник — обрати місце'),
+        actions: [
+          PageHelpAction(
+            title: 'Обрати місце',
+            points: [
+              'Обери управління → будівлю → поверх, а тоді — загальну площу поверху чи конкретний '
+                  'кабінет з ПК, куди прив\'язати новий вогнегасник.',
+              'Кабінет з ПК завжди отримує ВВК; загальна площа — один з дозволених у Налаштуваннях типів.',
+            ],
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

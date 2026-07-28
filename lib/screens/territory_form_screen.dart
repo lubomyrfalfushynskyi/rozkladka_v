@@ -4,6 +4,7 @@ import '../models/territory.dart';
 import '../services/calculation_service.dart';
 import '../services/database_service.dart';
 import '../widgets/confirm_delete.dart';
+import '../widgets/page_help.dart';
 
 class TerritoryFormScreen extends StatefulWidget {
   final int? divisionId;
@@ -71,6 +72,13 @@ class _TerritoryFormScreenState extends State<TerritoryFormScreen> {
       appBar: AppBar(
         title: Text(widget.territory == null ? 'Нова територія' : 'Редагувати територію'),
         actions: [
+          PageHelpAction(
+            title: 'Територія (ТВУЗ)',
+            points: [
+              'Площа території визначає, скільки пожежних щитів для неї потрібно (розрахунок нижче форми).',
+              'Назва і площа редагуються прямо тут у будь-який момент.',
+            ],
+          ),
           if (widget.territory != null)
             IconButton(icon: const Icon(Icons.delete_outline), onPressed: _delete),
         ],

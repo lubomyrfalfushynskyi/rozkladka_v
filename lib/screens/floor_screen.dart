@@ -6,6 +6,7 @@ import '../models/room.dart';
 import '../services/calculation_service.dart';
 import '../services/database_service.dart';
 import '../widgets/confirm_delete.dart';
+import '../widgets/page_help.dart';
 import 'all_extinguishers_screen.dart';
 import 'room_form_screen.dart';
 
@@ -64,7 +65,20 @@ class _FloorScreenState extends State<FloorScreen> {
       extinguishersByRoomId: _extinguishersByRoomId,
     );
     return Scaffold(
-      appBar: AppBar(title: Text(widget.floor.name)),
+      appBar: AppBar(
+        title: Text(widget.floor.name),
+        actions: [
+          PageHelpAction(
+            title: widget.floor.name,
+            points: [
+              '"Вогнегасники загальної площі" — вогнегасники поверху поза кабінетами з ПК.',
+              'Кабінети — список, іконка вогню поруч показує стан (червона — не встановлено, зелена — є); '
+                  'олівець — редагувати назву/площу/ознаку ПК; кошик — видалити.',
+              '"+ Кабінет" внизу — додати новий кабінет.',
+            ],
+          ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(

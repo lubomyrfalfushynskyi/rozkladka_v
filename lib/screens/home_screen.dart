@@ -6,6 +6,7 @@ import '../models/territory.dart';
 import '../services/calculation_service.dart';
 import '../services/database_service.dart';
 import '../widgets/confirm_delete.dart';
+import '../widgets/page_help.dart';
 import 'all_extinguishers_screen.dart';
 import 'building_screen.dart';
 import 'select_extinguisher_target_screen.dart';
@@ -58,12 +59,12 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<void> _addBuilding() async {
-    final controller = TextEditingController();
+  Future<void> _addOrEditBuilding({Building? building}) async {
+    final controller = TextEditingController(text: building?.name ?? '');
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Нова будівля'),
+        title: Text(building == null ? 'Нова будівля' : 'Перейменувати будівлю'),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -73,13 +74,17 @@ class _HomeScreenState extends State<HomeScreen> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Скасувати')),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Додати'),
+            child: Text(building == null ? 'Додати' : 'Зберегти'),
           ),
         ],
       ),
     );
     if (name == null || name.isEmpty) return;
-    await _db.insertBuilding(Building(divisionId: widget.division.id!, name: name));
+    if (building == null) {
+      await _db.insertBuilding(Building(divisionId: widget.division.id!, name: name));
+    } else {
+      await _db.updateBuilding(building.copyWith(name: name));
+    }
     _reload();
   }
 
@@ -95,7 +100,23 @@ class _HomeScreenState extends State<HomeScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     return Scaffold(
-      appBar: AppBar(title: Text(widget.division.name)),
+      appBar: AppBar(
+        title: Text(widget.division.name),
+        actions: [
+          PageHelpAction(
+            title: widget.division.name,
+            points: [
+              'Будівлі — рахують вогнегасники по поверхах/кабінетах. Натисни, щоб зайти; олівець — '
+                  'перейменувати; кошик — видалити.',
+              'Територія (ТВУЗ) — рахує потрібну кількість пожежних щитів за площею. Натисни, щоб '
+                  'редагувати назву/площу.',
+              'Вогнегасники внизу списку — перегляд/додавання/редагування усіх вогнегасників цього '
+                  'управління, з фільтрами і CSV.',
+              'Кнопки внизу праворуч — додати вогнегасник, територію або будівлю.',
+            ],
+          ),
+        ],
+      ),
       body: ListView(
         children: [
           const Padding(
@@ -111,9 +132,18 @@ class _HomeScreenState extends State<HomeScreen> {
             ListTile(
               leading: const Icon(Icons.apartment),
               title: Text(building.name),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline),
-                onPressed: () => _deleteBuilding(building),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined),
+                    onPressed: () => _addOrEditBuilding(building: building),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: () => _deleteBuilding(building),
+                  ),
+                ],
               ),
               onTap: () => Navigator.push(
                 context,
@@ -209,7 +239,7 @@ class _HomeScreenState extends State<HomeScreen> {
             heroTag: 'addBuilding',
             icon: const Icon(Icons.apartment),
             label: const Text('Будівля'),
-            onPressed: _addBuilding,
+            onPressed: () => _addOrEditBuilding(),
           ),
         ],
       ),
