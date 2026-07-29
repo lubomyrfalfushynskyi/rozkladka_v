@@ -112,10 +112,13 @@ class _DivisionListScreenState extends State<DivisionListScreen> {
           IconButton(
             icon: const Icon(Icons.bar_chart_outlined),
             tooltip: 'Статистика (усі управління)',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const SummaryScreen()),
-            ),
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SummaryScreen()),
+              );
+              _reload();
+            },
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
