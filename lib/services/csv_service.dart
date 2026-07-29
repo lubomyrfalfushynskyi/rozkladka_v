@@ -17,6 +17,8 @@ import 'database_service.dart';
 const String _bom = '\uFEFF';
 
 const String rowTypeExtinguisher = 'Вогнегасник';
+const String rowTypeDivision = 'Управління';
+const String rowTypeBuilding = 'Будівля';
 const String rowTypeFloor = 'Поверх';
 const String rowTypeRoom = 'Кабінет';
 const String rowTypeTerritory = 'Територія';
@@ -43,9 +45,9 @@ const List<String> csvHeaders = [
 
 /// Формує/читає повне дерево даних (управління → будівлі → поверхи →
 /// кабінети → вогнегасники, і окремо території/щити) в одному CSV-файлі.
-/// Кожен рядок має один із чотирьох "типів" (перша колонка) — так порожні
-/// поверхи/кабінети (без жодного вогнегасника) теж передаються, зі своєю
-/// площею, а не губляться.
+/// Кожен рядок має один із шести "типів" (перша колонка) — так порожні
+/// управління/будівлі/поверхи/кабінети (без жодного вкладеного об'єкта)
+/// теж передаються, а не губляться.
 class CsvService {
   /// Формує CSV. Без параметрів — по всіх управліннях (глобальний звіт). З
   /// `divisionId`/`buildingId`/`floorId`/`roomId` — обмежується відповідним
@@ -68,6 +70,9 @@ class CsvService {
       for (final building in buildings) {
         if (buildingId != null && building.id != buildingId) continue;
         final floors = await db.getFloorsForBuilding(building.id!);
+        if (floorId == null && roomId == null && floors.isEmpty) {
+          rows.add(_buildingPlaceholderRow(division.name, building.name));
+        }
         for (final floor in floors) {
           if (floorId != null && floor.id != floorId) continue;
 
@@ -102,6 +107,9 @@ class CsvService {
         final territories = await db.getTerritoriesForDivision(division.id!);
         for (final t in territories) {
           rows.add(_territoryRow(division.name, t));
+        }
+        if (buildings.isEmpty && territories.isEmpty) {
+          rows.add(_divisionPlaceholderRow(division.name));
         }
       }
     }
@@ -138,6 +146,21 @@ class CsvService {
     row[14] = e.serialNumber;
     row[15] = e.inventoryNumber;
     row[16] = e.id?.toString() ?? '';
+    return row;
+  }
+
+  static List<String> _divisionPlaceholderRow(String division) {
+    final row = _blankRow();
+    row[0] = rowTypeDivision;
+    row[1] = division;
+    return row;
+  }
+
+  static List<String> _buildingPlaceholderRow(String division, String building) {
+    final row = _blankRow();
+    row[0] = rowTypeBuilding;
+    row[1] = division;
+    row[2] = building;
     return row;
   }
 
@@ -206,6 +229,14 @@ class CsvService {
 
       try {
         switch (rowType) {
+          case rowTypeDivision:
+            await db.findOrCreateDivision(divisionName);
+            imported++;
+            break;
+          case rowTypeBuilding:
+            await _importBuildingRow(db, row, i, divisionName, skipped);
+            imported++;
+            break;
           case rowTypeTerritory:
             await _importTerritoryRow(db, row, i, divisionName, skipped);
             imported++;
@@ -230,6 +261,22 @@ class CsvService {
     }
 
     return ExtinguisherImportResult(imported: imported, skipped: skipped);
+  }
+
+  static Future<void> _importBuildingRow(
+    DatabaseService db,
+    List<dynamic> row,
+    int i,
+    String divisionName,
+    List<String> skipped,
+  ) async {
+    final buildingName = row[2].toString().trim();
+    if (buildingName.isEmpty) {
+      skipped.add('Рядок ${i + 1}: відсутня назва будівлі');
+      throw _SkipRow();
+    }
+    final divisionId = await db.findOrCreateDivision(divisionName);
+    await db.findOrCreateBuilding(divisionId, buildingName);
   }
 
   static Future<void> _importTerritoryRow(

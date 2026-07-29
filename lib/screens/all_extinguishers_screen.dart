@@ -89,34 +89,44 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
         final floors = await _db.getFloorsForBuilding(building.id!);
         floorsByBuilding[building.id!] = floors;
         for (final Floor floor in floors) {
-          final floorExtinguishers = await _db.getExtinguishersForFloor(floor.id!);
+          final floorExtinguishers = await _db.getExtinguishersForFloor(
+            floor.id!,
+          );
           for (final e in floorExtinguishers) {
-            entries.add(ExtinguisherEntry(
-              extinguisher: e,
-              divisionId: division.id!,
-              buildingId: building.id!,
-              floorId: floor.id!,
-              roomId: null,
-              contextLabel: '${division.name} / ${building.name} / ${floor.name} / Загальна площа',
-              allowedTypesForEdit: allowedGeneralTypes,
-            ));
+            entries.add(
+              ExtinguisherEntry(
+                extinguisher: e,
+                divisionId: division.id!,
+                buildingId: building.id!,
+                floorId: floor.id!,
+                roomId: null,
+                contextLabel:
+                    '${division.name} / ${building.name} / ${floor.name} / Загальна площа',
+                allowedTypesForEdit: allowedGeneralTypes,
+              ),
+            );
           }
 
           final rooms = await _db.getRoomsForFloor(floor.id!);
           final computerRooms = rooms.where((r) => r.hasComputer).toList();
           computerRoomsByFloor[floor.id!] = computerRooms;
           for (final Room room in computerRooms) {
-            final roomExtinguishers = await _db.getExtinguishersForRoom(room.id!);
+            final roomExtinguishers = await _db.getExtinguishersForRoom(
+              room.id!,
+            );
             for (final e in roomExtinguishers) {
-              entries.add(ExtinguisherEntry(
-                extinguisher: e,
-                divisionId: division.id!,
-                buildingId: building.id!,
-                floorId: floor.id!,
-                roomId: room.id,
-                contextLabel: '${division.name} / ${building.name} / ${floor.name} / ${room.name}',
-                allowedTypesForEdit: const [ExtinguisherType.vvk],
-              ));
+              entries.add(
+                ExtinguisherEntry(
+                  extinguisher: e,
+                  divisionId: division.id!,
+                  buildingId: building.id!,
+                  floorId: floor.id!,
+                  roomId: room.id,
+                  contextLabel:
+                      '${division.name} / ${building.name} / ${floor.name} / ${room.name}',
+                  allowedTypesForEdit: const [ExtinguisherType.vvk],
+                ),
+              );
             }
           }
         }
@@ -152,9 +162,15 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
 
   List<ExtinguisherEntry> get _filteredEntries {
     return _allEntries.where((entry) {
-      if (_filterDivisionId != null && entry.divisionId != _filterDivisionId) return false;
-      if (_filterBuildingId != null && entry.buildingId != _filterBuildingId) return false;
-      if (_filterFloorId != null && entry.floorId != _filterFloorId) return false;
+      if (_filterDivisionId != null && entry.divisionId != _filterDivisionId) {
+        return false;
+      }
+      if (_filterBuildingId != null && entry.buildingId != _filterBuildingId) {
+        return false;
+      }
+      if (_filterFloorId != null && entry.floorId != _filterFloorId) {
+        return false;
+      }
       if (_filterRoomId != null && entry.roomId != _filterRoomId) return false;
       return true;
     }).toList();
@@ -162,9 +178,15 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final buildings = _filterDivisionId != null ? (_buildingsByDivision[_filterDivisionId!] ?? []) : <Building>[];
-    final floors = _filterBuildingId != null ? (_floorsByBuilding[_filterBuildingId!] ?? []) : <Floor>[];
-    final rooms = _filterFloorId != null ? (_computerRoomsByFloor[_filterFloorId!] ?? []) : <Room>[];
+    final buildings = _filterDivisionId != null
+        ? (_buildingsByDivision[_filterDivisionId!] ?? [])
+        : <Building>[];
+    final floors = _filterBuildingId != null
+        ? (_floorsByBuilding[_filterBuildingId!] ?? [])
+        : <Floor>[];
+    final rooms = _filterFloorId != null
+        ? (_computerRoomsByFloor[_filterFloorId!] ?? [])
+        : <Room>[];
     final entries = _filteredEntries;
 
     return Scaffold(
@@ -192,10 +214,19 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
                     children: [
                       DropdownButtonFormField<int?>(
                         initialValue: _filterDivisionId,
-                        decoration: const InputDecoration(labelText: 'Управління'),
+                        decoration: const InputDecoration(
+                          labelText: 'Управління',
+                        ),
                         items: [
-                          const DropdownMenuItem<int?>(value: null, child: Text('Усі управління')),
-                          for (final d in _divisions) DropdownMenuItem<int?>(value: d.id, child: Text(d.name)),
+                          const DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text('Усі управління'),
+                          ),
+                          for (final d in _divisions)
+                            DropdownMenuItem<int?>(
+                              value: d.id,
+                              child: Text(d.name),
+                            ),
                         ],
                         onChanged: (v) => setState(() {
                           _filterDivisionId = v;
@@ -209,99 +240,137 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
                         initialValue: _filterBuildingId,
                         decoration: const InputDecoration(labelText: 'Будівля'),
                         items: [
-                          const DropdownMenuItem<int?>(value: null, child: Text('Усі будівлі')),
-                          for (final b in buildings) DropdownMenuItem<int?>(value: b.id, child: Text(b.name)),
+                          const DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text('Усі будівлі'),
+                          ),
+                          for (final b in buildings)
+                            DropdownMenuItem<int?>(
+                              value: b.id,
+                              child: Text(b.name),
+                            ),
                         ],
                         onChanged: _filterDivisionId == null
                             ? null
                             : (v) => setState(() {
-                                  _filterBuildingId = v;
-                                  _filterFloorId = null;
-                                  _filterRoomId = null;
-                                }),
+                                _filterBuildingId = v;
+                                _filterFloorId = null;
+                                _filterRoomId = null;
+                              }),
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<int?>(
                         initialValue: _filterFloorId,
                         decoration: const InputDecoration(labelText: 'Поверх'),
                         items: [
-                          const DropdownMenuItem<int?>(value: null, child: Text('Усі поверхи')),
-                          for (final f in floors) DropdownMenuItem<int?>(value: f.id, child: Text(f.name)),
+                          const DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text('Усі поверхи'),
+                          ),
+                          for (final f in floors)
+                            DropdownMenuItem<int?>(
+                              value: f.id,
+                              child: Text(f.name),
+                            ),
                         ],
                         onChanged: _filterBuildingId == null
                             ? null
                             : (v) => setState(() {
-                                  _filterFloorId = v;
-                                  _filterRoomId = null;
-                                }),
+                                _filterFloorId = v;
+                                _filterRoomId = null;
+                              }),
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<int?>(
                         initialValue: _filterRoomId,
                         decoration: const InputDecoration(labelText: 'Кабінет'),
                         items: [
-                          const DropdownMenuItem<int?>(value: null, child: Text('Усі кабінети (+ загальна площа)')),
-                          for (final r in rooms) DropdownMenuItem<int?>(value: r.id, child: Text(r.name)),
+                          const DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text('Усі кабінети (+ загальна площа)'),
+                          ),
+                          for (final r in rooms)
+                            DropdownMenuItem<int?>(
+                              value: r.id,
+                              child: Text(r.name),
+                            ),
                         ],
-                        onChanged: _filterFloorId == null ? null : (v) => setState(() => _filterRoomId = v),
+                        onChanged: _filterFloorId == null
+                            ? null
+                            : (v) => setState(() => _filterRoomId = v),
                       ),
                     ],
                   ),
                 ),
                 const Divider(height: 1),
                 Expanded(
-                  child: entries.isEmpty
-                      ? const Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Text('Немає вогнегасників за обраним фільтром. Натисни "+" щоб додати.'),
-                        )
-                      : ListView(
-                          children: [
-                            for (final entry in entries)
-                              ListTile(
-                                leading: const Icon(Icons.local_fire_department_outlined),
-                                title: Text(
-                                  '№${entry.extinguisher.id} · ${entry.extinguisher.type.code} · '
-                                  '${entry.extinguisher.capacityLiters.toStringAsFixed(1)} ${entry.extinguisher.type.unit}',
+                  child: RefreshIndicator(
+                    onRefresh: _reload,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        if (entries.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Text(
+                              'Немає вогнегасників за обраним фільтром. Натисни "+" щоб додати.',
+                            ),
+                          ),
+                        for (final entry in entries)
+                          ListTile(
+                            leading: const Icon(
+                              Icons.local_fire_department_outlined,
+                            ),
+                            title: Text(
+                              '№${entry.extinguisher.id} · ${entry.extinguisher.type.code} · '
+                              '${entry.extinguisher.capacityLiters.toStringAsFixed(1)} ${entry.extinguisher.type.unit}',
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(entry.contextLabel),
+                                Text(
+                                  'Заводський: ${entry.extinguisher.serialNumber}',
                                 ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(entry.contextLabel),
-                                    Text('Заводський: ${entry.extinguisher.serialNumber}'),
-                                    Text('Інвентарний: ${entry.extinguisher.inventoryNumber}'),
-                                  ],
+                                Text(
+                                  'Інвентарний: ${entry.extinguisher.inventoryNumber}',
                                 ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.edit_outlined),
-                                      onPressed: () async {
-                                        await Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => ExtinguisherFormScreen(
+                              ],
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit_outlined),
+                                  onPressed: () async {
+                                    await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            ExtinguisherFormScreen(
                                               roomId: entry.extinguisher.roomId,
-                                              floorId: entry.extinguisher.floorId,
-                                              allowedTypes: entry.allowedTypesForEdit,
+                                              floorId:
+                                                  entry.extinguisher.floorId,
+                                              allowedTypes:
+                                                  entry.allowedTypesForEdit,
                                               extinguisher: entry.extinguisher,
                                             ),
-                                          ),
-                                        );
-                                        _reload();
-                                      },
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete_outline),
-                                      onPressed: () => _delete(entry.extinguisher),
-                                    ),
-                                  ],
+                                      ),
+                                    );
+                                    _reload();
+                                  },
                                 ),
-                              ),
-                            const SizedBox(height: 80),
-                          ],
-                        ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline),
+                                  onPressed: () => _delete(entry.extinguisher),
+                                ),
+                              ],
+                            ),
+                          ),
+                        const SizedBox(height: 80),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -312,7 +381,9 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
           await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => SelectExtinguisherTargetScreen(initialDivisionId: _filterDivisionId),
+              builder: (context) => SelectExtinguisherTargetScreen(
+                initialDivisionId: _filterDivisionId,
+              ),
             ),
           );
           _reload();

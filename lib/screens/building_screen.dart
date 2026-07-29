@@ -65,16 +65,25 @@ class _BuildingScreenState extends State<BuildingScreen> {
               TextFormField(
                 controller: nameController,
                 autofocus: true,
-                decoration: const InputDecoration(labelText: 'Назва поверху (напр. "1 поверх")'),
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Обовʼязково' : null,
+                decoration: const InputDecoration(
+                  labelText: 'Назва поверху (напр. "1 поверх")',
+                ),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Обовʼязково' : null,
               ),
               TextFormField(
                 controller: areaController,
-                decoration: const InputDecoration(labelText: 'Загальна площа поверху, м²'),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Загальна площа поверху, м²',
+                ),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 validator: (v) {
                   final value = double.tryParse((v ?? '').replaceAll(',', '.'));
-                  if (value == null || value <= 0) return 'Вкажіть коректну площу';
+                  if (value == null || value <= 0) {
+                    return 'Вкажіть коректну площу';
+                  }
                   return null;
                 },
               ),
@@ -82,10 +91,15 @@ class _BuildingScreenState extends State<BuildingScreen> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Скасувати')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Скасувати'),
+          ),
           FilledButton(
             onPressed: () {
-              if (formKey.currentState!.validate()) Navigator.pop(context, true);
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(context, true);
+              }
             },
             child: const Text('Зберегти'),
           ),
@@ -96,9 +110,17 @@ class _BuildingScreenState extends State<BuildingScreen> {
     if (result != true) return;
     final area = double.parse(areaController.text.replaceAll(',', '.'));
     if (floor == null) {
-      await _db.insertFloor(Floor(buildingId: widget.building.id!, name: nameController.text.trim(), totalArea: area));
+      await _db.insertFloor(
+        Floor(
+          buildingId: widget.building.id!,
+          name: nameController.text.trim(),
+          totalArea: area,
+        ),
+      );
     } else {
-      await _db.updateFloor(floor.copyWith(name: nameController.text.trim(), totalArea: area));
+      await _db.updateFloor(
+        floor.copyWith(name: nameController.text.trim(), totalArea: area),
+      );
     }
     _reload();
   }
@@ -145,62 +167,85 @@ class _BuildingScreenState extends State<BuildingScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.local_fire_department_outlined),
-                  title: const Text('Вогнегасники будівлі'),
-                  subtitle: const Text('Перегляд, додавання, редагування'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => AllExtinguishersScreen(initialBuildingId: widget.building.id),
-                      ),
-                    );
-                    _reload();
-                  },
-                ),
-                const Divider(height: 1),
-                if (_floors.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('Ще немає жодного поверху'),
+          : RefreshIndicator(
+              onRefresh: _reload,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.local_fire_department_outlined),
+                    title: const Text('Вогнегасники будівлі'),
+                    subtitle: const Text('Перегляд, додавання, редагування'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AllExtinguishersScreen(
+                            initialBuildingId: widget.building.id,
+                          ),
+                        ),
+                      );
+                      _reload();
+                    },
                   ),
-                for (final floor in _floors)
-                  Builder(builder: (context) {
-                    final rooms = _roomsByFloor[floor.id!] ?? [];
-                    final calc = CalculationService.calculateFloor(floor, rooms);
-                    return ListTile(
-                      leading: const Icon(Icons.layers),
-                      title: Text(floor.name),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('${floor.totalArea.toStringAsFixed(0)} м²'),
-                          Text('Кабінетів з ПК: ${calc.computerRooms.length}'),
-                          Text('Потрібно л. на решту: ${calc.requiredLiters.toStringAsFixed(0)}'),
-                        ],
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => _addOrEditFloor(floor: floor)),
-                          IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => _deleteFloor(floor)),
-                        ],
-                      ),
-                      onTap: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => FloorScreen(floor: floor)),
+                  const Divider(height: 1),
+                  if (_floors.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('Ще немає жодного поверху'),
+                    ),
+                  for (final floor in _floors)
+                    Builder(
+                      builder: (context) {
+                        final rooms = _roomsByFloor[floor.id!] ?? [];
+                        final calc = CalculationService.calculateFloor(
+                          floor,
+                          rooms,
                         );
-                        _reload();
+                        return ListTile(
+                          leading: const Icon(Icons.layers),
+                          title: Text(floor.name),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('${floor.totalArea.toStringAsFixed(0)} м²'),
+                              Text(
+                                'Кабінетів з ПК: ${calc.computerRooms.length}',
+                              ),
+                              Text(
+                                'Потрібно л. на решту: ${calc.requiredLiters.toStringAsFixed(0)}',
+                              ),
+                            ],
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined),
+                                onPressed: () => _addOrEditFloor(floor: floor),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline),
+                                onPressed: () => _deleteFloor(floor),
+                              ),
+                            ],
+                          ),
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => FloorScreen(floor: floor),
+                              ),
+                            );
+                            _reload();
+                          },
+                        );
                       },
-                    );
-                  }),
-                const SizedBox(height: 80),
-              ],
+                    ),
+                  const SizedBox(height: 80),
+                ],
+              ),
             ),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.add),

@@ -48,3 +48,17 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Release-підпис — секрети, ніколи не в git. Без цих файлів release-збірка
+# автоматично відкочується на дебаг-підпис (build.gradle.kts перевіряє
+# наявність key.properties).
+android/key.properties
+android/app/*.jks
+android/app/*.keystore
+
+# Готові збірки під кожну ОС (builds/android/, builds/iphone/) — самі
+# бінарники (APK/IPA) не комітяться, легко перезібрати; інструкції
+# встановлення (.md) поруч — звичайні текстові файли, лишаються в git.
+builds/**/*.apk
+builds/**/*.ipa
+builds/**/*.aab

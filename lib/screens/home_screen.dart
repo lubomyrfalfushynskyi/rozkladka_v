@@ -37,7 +37,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _reload() async {
     final buildings = await _db.getBuildingsForDivision(widget.division.id!);
-    final territories = await _db.getTerritoriesForDivision(widget.division.id!);
+    final territories = await _db.getTerritoriesForDivision(
+      widget.division.id!,
+    );
 
     // Кількість вогнегасників саме цього управління — рахуємо через будівлі/поверхи.
     var count = 0;
@@ -65,14 +67,19 @@ class _HomeScreenState extends State<HomeScreen> {
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(building == null ? 'Нова будівля' : 'Перейменувати будівлю'),
+        title: Text(
+          building == null ? 'Нова будівля' : 'Перейменувати будівлю',
+        ),
         content: TextField(
           controller: controller,
           autofocus: true,
           decoration: const InputDecoration(labelText: 'Назва будівлі'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Скасувати')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Скасувати'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
             child: Text(building == null ? 'Додати' : 'Зберегти'),
@@ -82,7 +89,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (name == null || name.isEmpty) return;
     if (building == null) {
-      await _db.insertBuilding(Building(divisionId: widget.division.id!, name: name));
+      await _db.insertBuilding(
+        Building(divisionId: widget.division.id!, name: name),
+      );
     } else {
       await _db.updateBuilding(building.copyWith(name: name));
     }
@@ -124,7 +133,8 @@ class _HomeScreenState extends State<HomeScreen> {
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => SummaryScreen(initialDivisionId: widget.division.id),
+                  builder: (context) =>
+                      SummaryScreen(initialDivisionId: widget.division.id),
                 ),
               );
               _reload();
@@ -132,89 +142,111 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: ListView(
-        children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Text('Будівлі', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          ),
-          if (_buildings.isEmpty)
+      body: RefreshIndicator(
+        onRefresh: _reload,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
             const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text('Ще немає жодної будівлі'),
-            ),
-          for (final building in _buildings)
-            ListTile(
-              leading: const Icon(Icons.apartment),
-              title: Text(building.name),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined),
-                    onPressed: () => _addOrEditBuilding(building: building),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () => _deleteBuilding(building),
-                  ),
-                ],
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Text(
+                'Будівлі',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => BuildingScreen(building: building)),
-              ).then((_) => _reload()),
             ),
-          const Divider(),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Text('Територія (ТВУЗ)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          ),
-          if (_territories.isEmpty)
+            if (_buildings.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text('Ще немає жодної будівлі'),
+              ),
+            for (final building in _buildings)
+              ListTile(
+                leading: const Icon(Icons.apartment),
+                title: Text(building.name),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: () => _addOrEditBuilding(building: building),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () => _deleteBuilding(building),
+                    ),
+                  ],
+                ),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => BuildingScreen(building: building),
+                  ),
+                ).then((_) => _reload()),
+              ),
+            const Divider(),
             const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text('Ще немає жодної території'),
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Text(
+                'Територія (ТВУЗ)',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
             ),
-          for (final territory in _territories)
-            Builder(builder: (context) {
-              final calc = CalculationService.calculateTerritory(territory);
-              return ListTile(
-                leading: const Icon(Icons.terrain),
-                title: Text(territory.name),
-                subtitle: Text(
-                  '${territory.area.toStringAsFixed(0)} м² · потрібно щитів: ${calc.requiredShields}',
-                ),
-                onTap: () async {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => TerritoryFormScreen(territory: territory)),
+            if (_territories.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text('Ще немає жодної території'),
+              ),
+            for (final territory in _territories)
+              Builder(
+                builder: (context) {
+                  final calc = CalculationService.calculateTerritory(territory);
+                  return ListTile(
+                    leading: const Icon(Icons.terrain),
+                    title: Text(territory.name),
+                    subtitle: Text(
+                      '${territory.area.toStringAsFixed(0)} м² · потрібно щитів: ${calc.requiredShields}',
+                    ),
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              TerritoryFormScreen(territory: territory),
+                        ),
+                      );
+                      _reload();
+                    },
                   );
-                  _reload();
                 },
-              );
-            }),
-          const Divider(),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Text('Вогнегасники', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          ),
-          ListTile(
-            leading: const Icon(Icons.local_fire_department_outlined),
-            title: Text('Усього зареєстровано: $_extinguisherCount шт.'),
-            subtitle: const Text('Перегляд, додавання, редагування'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AllExtinguishersScreen(initialDivisionId: widget.division.id),
-                ),
-              );
-              _reload();
-            },
-          ),
-          const SizedBox(height: 220),
-        ],
+              ),
+            const Divider(),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Text(
+                'Вогнегасники',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.local_fire_department_outlined),
+              title: Text('Усього зареєстровано: $_extinguisherCount шт.'),
+              subtitle: const Text('Перегляд, додавання, редагування'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AllExtinguishersScreen(
+                      initialDivisionId: widget.division.id,
+                    ),
+                  ),
+                );
+                _reload();
+              },
+            ),
+            const SizedBox(height: 220),
+          ],
+        ),
       ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
@@ -228,7 +260,9 @@ class _HomeScreenState extends State<HomeScreen> {
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => SelectExtinguisherTargetScreen(initialDivisionId: widget.division.id),
+                  builder: (context) => SelectExtinguisherTargetScreen(
+                    initialDivisionId: widget.division.id,
+                  ),
                 ),
               );
               _reload();
@@ -243,7 +277,8 @@ class _HomeScreenState extends State<HomeScreen> {
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => TerritoryFormScreen(divisionId: widget.division.id),
+                  builder: (context) =>
+                      TerritoryFormScreen(divisionId: widget.division.id),
                 ),
               );
               _reload();

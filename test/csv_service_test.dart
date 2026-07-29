@@ -148,6 +148,25 @@ void main() {
     expect(csvText, contains('33'));
   });
 
+  test('порожнє управління і порожня будівля теж передаються в CSV (заглушки)', () async {
+    final db = DatabaseService.instance;
+    final emptyDivisionId = await db.insertDivision(const Division(name: 'Порожнє управління'));
+
+    final divisionWithBuildingId = await db.insertDivision(const Division(name: 'Управління з будівлею'));
+    await db.insertBuilding(Building(divisionId: divisionWithBuildingId, name: 'Порожня будівля'));
+
+    final emptyCsv = await CsvService.buildCsv(divisionId: emptyDivisionId);
+    expect(emptyCsv, contains(rowTypeDivision));
+    expect(emptyCsv, contains('Порожнє управління'));
+
+    final withBuildingCsv = await CsvService.buildCsv(divisionId: divisionWithBuildingId);
+    expect(withBuildingCsv, contains(rowTypeBuilding));
+    expect(withBuildingCsv, contains('Порожня будівля'));
+    // Управління само по собі не порожнє (має будівлю), тож не повинно
+    // з'являтись рядком-заглушкою управління.
+    expect(withBuildingCsv, isNot(contains('$rowTypeDivision,Управління з будівлею,,,,,,,,,,,,,,,\n')));
+  });
+
   test('імпорт CSV додає вогнегасник у наявний кабінет', () async {
     final db = DatabaseService.instance;
     final divisionId = await db.insertDivision(const Division(name: 'Управління Імпорт'));
@@ -213,6 +232,8 @@ void main() {
     final buildingId = await db.insertBuilding(Building(divisionId: divisionId, name: 'Будівля Round'));
     final floorAId = await db.insertFloor(Floor(buildingId: buildingId, name: 'Поверх 1', totalArea: 300));
     await db.insertFloor(Floor(buildingId: buildingId, name: 'Поверх 2', totalArea: 150));
+    // Друга будівля навмисно лишається зовсім порожньою (без жодного поверху).
+    await db.insertBuilding(Building(divisionId: divisionId, name: 'Порожня будівля Round'));
 
     await db.insertRoom(Room(floorId: floorAId, name: 'Каб 101', area: 15, hasComputer: false));
     final room102Id = await db.insertRoom(Room(floorId: floorAId, name: 'Каб 102', area: 22, hasComputer: true));
@@ -244,10 +265,12 @@ void main() {
 
     final restoredDivisionId = await db.findOrCreateDivision('Кругообіг');
     final restoredBuildings = await db.getBuildingsForDivision(restoredDivisionId);
-    expect(restoredBuildings, hasLength(1));
-    expect(restoredBuildings.first.name, 'Будівля Round');
+    expect(restoredBuildings, hasLength(2));
+    final mainBuilding = restoredBuildings.firstWhere((b) => b.name == 'Будівля Round');
+    final emptyBuilding = restoredBuildings.firstWhere((b) => b.name == 'Порожня будівля Round');
+    expect(await db.getFloorsForBuilding(emptyBuilding.id!), isEmpty); // порожня будівля не загубилась
 
-    final restoredFloors = await db.getFloorsForBuilding(restoredBuildings.first.id!);
+    final restoredFloors = await db.getFloorsForBuilding(mainBuilding.id!);
     expect(restoredFloors, hasLength(2));
     final floor1 = restoredFloors.firstWhere((f) => f.name == 'Поверх 1');
     final floor2 = restoredFloors.firstWhere((f) => f.name == 'Поверх 2');
@@ -281,8 +304,8 @@ void main() {
     expect(secondImport.skipped, isEmpty);
     expect(await db.getExtinguishersForRoom(room102.id!), hasLength(1));
     expect(await db.getExtinguishersForFloor(floor1.id!), hasLength(1));
-    expect(await db.getBuildingsForDivision(restoredDivisionId), hasLength(1));
-    expect(await db.getFloorsForBuilding(restoredBuildings.first.id!), hasLength(2));
+    expect(await db.getBuildingsForDivision(restoredDivisionId), hasLength(2));
+    expect(await db.getFloorsForBuilding(mainBuilding.id!), hasLength(2));
     expect(await db.getTerritoriesForDivision(restoredDivisionId), hasLength(1));
   });
 }

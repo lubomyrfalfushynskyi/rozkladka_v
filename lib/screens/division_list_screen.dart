@@ -41,14 +41,19 @@ class _DivisionListScreenState extends State<DivisionListScreen> {
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(division == null ? 'Нове управління' : 'Перейменувати управління'),
+        title: Text(
+          division == null ? 'Нове управління' : 'Перейменувати управління',
+        ),
         content: TextField(
           controller: controller,
           autofocus: true,
           decoration: const InputDecoration(labelText: 'Назва управління'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Скасувати')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Скасувати'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
             child: Text(division == null ? 'Додати' : 'Зберегти'),
@@ -97,7 +102,9 @@ class _DivisionListScreenState extends State<DivisionListScreen> {
             onPressed: () async {
               await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const AllExtinguishersScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const AllExtinguishersScreen(),
+                ),
               );
               _reload();
             },
@@ -125,41 +132,56 @@ class _DivisionListScreenState extends State<DivisionListScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              children: [
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
-                  child: Text('Управління', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                ),
-                if (_divisions.isEmpty)
+          : RefreshIndicator(
+              onRefresh: _reload,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
                   const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16),
-                    child: Text('Ще немає жодного управління. Натисни "+" щоб додати перше.'),
-                  ),
-                for (final division in _divisions)
-                  ListTile(
-                    leading: const Icon(Icons.account_balance_outlined),
-                    title: Text(division.name),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined),
-                          onPressed: () => _addOrEditDivision(division: division),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          onPressed: () => _deleteDivision(division),
-                        ),
-                      ],
+                    padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+                    child: Text(
+                      'Управління',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => HomeScreen(division: division)),
-                    ).then((_) => _reload()),
                   ),
-                const SizedBox(height: 80),
-              ],
+                  if (_divisions.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'Ще немає жодного управління. Натисни "+" щоб додати перше.',
+                      ),
+                    ),
+                  for (final division in _divisions)
+                    ListTile(
+                      leading: const Icon(Icons.account_balance_outlined),
+                      title: Text(division.name),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () =>
+                                _addOrEditDivision(division: division),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () => _deleteDivision(division),
+                          ),
+                        ],
+                      ),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => HomeScreen(division: division),
+                        ),
+                      ).then((_) => _reload()),
+                    ),
+                  const SizedBox(height: 80),
+                ],
+              ),
             ),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.add),

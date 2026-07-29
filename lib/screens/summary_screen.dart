@@ -76,7 +76,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
         floorsByBuilding[building.id!] = floors;
         for (final Floor floor in floors) {
           final List<Room> rooms = await _db.getRoomsForFloor(floor.id!);
-          final List<Extinguisher> floorExtinguishers = await _db.getExtinguishersForFloor(floor.id!);
+          final List<Extinguisher> floorExtinguishers = await _db
+              .getExtinguishersForFloor(floor.id!);
           final byRoom = <int, List<Extinguisher>>{};
           for (final room in rooms) {
             if (room.hasComputer && room.id != null) {
@@ -89,24 +90,28 @@ class _SummaryScreenState extends State<SummaryScreen> {
             floorExtinguishers: floorExtinguishers,
             extinguishersByRoomId: byRoom,
           );
-          floorEntries.add(FloorSummaryEntry(
-            divisionId: division.id!,
-            divisionName: division.name,
-            buildingId: building.id!,
-            buildingName: building.name,
-            floor: floor,
-            calc: calc,
-          ));
+          floorEntries.add(
+            FloorSummaryEntry(
+              divisionId: division.id!,
+              divisionName: division.name,
+              buildingId: building.id!,
+              buildingName: building.name,
+              floor: floor,
+              calc: calc,
+            ),
+          );
         }
       }
 
       final territories = await _db.getTerritoriesForDivision(division.id!);
       for (final Territory territory in territories) {
-        territoryEntries.add(TerritorySummaryEntry(
-          divisionId: division.id!,
-          divisionName: division.name,
-          calc: CalculationService.calculateTerritory(territory),
-        ));
+        territoryEntries.add(
+          TerritorySummaryEntry(
+            divisionId: division.id!,
+            divisionName: division.name,
+            calc: CalculationService.calculateTerritory(territory),
+          ),
+        );
       }
     }
 
@@ -130,27 +135,41 @@ class _SummaryScreenState extends State<SummaryScreen> {
     });
   }
 
-  List<FloorSummaryEntry> get _filteredFloorEntries => _allFloorEntries.where((e) {
-        if (_filterDivisionId != null && e.divisionId != _filterDivisionId) return false;
-        if (_filterBuildingId != null && e.buildingId != _filterBuildingId) return false;
-        if (_filterFloorId != null && e.floor.id != _filterFloorId) return false;
-        return true;
-      }).toList();
+  List<FloorSummaryEntry> get _filteredFloorEntries => _allFloorEntries.where((
+    e,
+  ) {
+    if (_filterDivisionId != null && e.divisionId != _filterDivisionId) {
+      return false;
+    }
+    if (_filterBuildingId != null && e.buildingId != _filterBuildingId) {
+      return false;
+    }
+    if (_filterFloorId != null && e.floor.id != _filterFloorId) return false;
+    return true;
+  }).toList();
 
   /// Території належать управлінню, а не будівлі/поверху — тож видимі лише
   /// коли не звужено до конкретної будівлі/поверху.
   List<TerritorySummaryEntry> get _filteredTerritoryEntries {
     if (_filterBuildingId != null || _filterFloorId != null) return [];
-    return _allTerritoryEntries.where((e) => _filterDivisionId == null || e.divisionId == _filterDivisionId).toList();
+    return _allTerritoryEntries
+        .where(
+          (e) => _filterDivisionId == null || e.divisionId == _filterDivisionId,
+        )
+        .toList();
   }
 
   String get _scopeTitle {
     if (_filterFloorId != null) {
-      final floor = _floorsByBuilding[_filterBuildingId]?.firstWhere((f) => f.id == _filterFloorId);
+      final floor = _floorsByBuilding[_filterBuildingId]?.firstWhere(
+        (f) => f.id == _filterFloorId,
+      );
       return floor?.name ?? 'поверх';
     }
     if (_filterBuildingId != null) {
-      final building = _buildingsByDivision[_filterDivisionId]?.firstWhere((b) => b.id == _filterBuildingId);
+      final building = _buildingsByDivision[_filterDivisionId]?.firstWhere(
+        (b) => b.id == _filterBuildingId,
+      );
       return building?.name ?? 'будівля';
     }
     if (_filterDivisionId != null) {
@@ -168,7 +187,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
   }
 
   Future<void> _exportCsv() async {
-    final defaultName = 'Вогнегасники_${_sanitize(_scopeTitle)}_${_formatTimestamp(DateTime.now())}';
+    final defaultName =
+        'Вогнегасники_${_sanitize(_scopeTitle)}_${_formatTimestamp(DateTime.now())}';
     final controller = TextEditingController(text: defaultName);
     final fileName = await showDialog<String>(
       context: context,
@@ -180,11 +200,16 @@ class _SummaryScreenState extends State<SummaryScreen> {
           decoration: const InputDecoration(labelText: 'Назва файлу'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Скасувати')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Скасувати'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(
               context,
-              controller.text.trim().isEmpty ? defaultName : controller.text.trim(),
+              controller.text.trim().isEmpty
+                  ? defaultName
+                  : controller.text.trim(),
             ),
             child: const Text('Експортувати'),
           ),
@@ -210,7 +235,10 @@ class _SummaryScreenState extends State<SummaryScreen> {
   }
 
   Future<void> _importCsv() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['csv']);
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+    );
     if (result == null || result.files.single.path == null) return;
 
     final file = File(result.files.single.path!);
@@ -231,15 +259,24 @@ class _SummaryScreenState extends State<SummaryScreen> {
               Text('Імпортовано/оновлено: ${importResult.imported} шт.'),
               if (importResult.skipped.isNotEmpty) ...[
                 const SizedBox(height: 8),
-                Text('Пропущено (${importResult.skipped.length}):', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  'Пропущено (${importResult.skipped.length}):',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 for (final s in importResult.skipped)
-                  Padding(padding: const EdgeInsets.only(top: 2), child: Text('• $s')),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text('• $s'),
+                  ),
               ],
             ],
           ),
         ),
         actions: [
-          FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Гаразд')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Гаразд'),
+          ),
         ],
       ),
     );
@@ -249,7 +286,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
     final floorEntries = _filteredFloorEntries;
     final territoryEntries = _filteredTerritoryEntries;
     final totals = SummaryTotals.fromFloorEntries(floorEntries);
-    final fileName = 'Звіт_${_sanitize(_scopeTitle)}_${_formatTimestamp(DateTime.now())}';
+    final fileName =
+        'Звіт_${_sanitize(_scopeTitle)}_${_formatTimestamp(DateTime.now())}';
 
     final bytes = await PdfService.buildSummaryReport(
       scopeTitle: _scopeTitle,
@@ -274,16 +312,25 @@ class _SummaryScreenState extends State<SummaryScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final buildings = _filterDivisionId != null ? (_buildingsByDivision[_filterDivisionId!] ?? []) : <Building>[];
-    final floors = _filterBuildingId != null ? (_floorsByBuilding[_filterBuildingId!] ?? []) : <Floor>[];
+    final buildings = _filterDivisionId != null
+        ? (_buildingsByDivision[_filterDivisionId!] ?? [])
+        : <Building>[];
+    final floors = _filterBuildingId != null
+        ? (_floorsByBuilding[_filterBuildingId!] ?? [])
+        : <Floor>[];
     final floorEntries = _filteredFloorEntries;
     final territoryEntries = _filteredTerritoryEntries;
     final totals = SummaryTotals.fromFloorEntries(floorEntries);
 
     final filteredTerritoryEntries = _territoryFilterId == null
         ? territoryEntries
-        : territoryEntries.where((t) => t.calc.territory.id == _territoryFilterId).toList();
-    final shownShields = filteredTerritoryEntries.fold<int>(0, (sum, t) => sum + t.calc.requiredShields);
+        : territoryEntries
+              .where((t) => t.calc.territory.id == _territoryFilterId)
+              .toList();
+    final shownShields = filteredTerritoryEntries.fold<int>(
+      0,
+      (sum, t) => sum + t.calc.requiredShields,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -302,175 +349,253 @@ class _SummaryScreenState extends State<SummaryScreen> {
               'Експорт PDF — друкована версія цього звіту для офіційної звітності.',
             ],
           ),
-          IconButton(icon: const Icon(Icons.file_upload_outlined), tooltip: 'Імпорт CSV', onPressed: _importCsv),
-          IconButton(icon: const Icon(Icons.ios_share), tooltip: 'Експорт CSV', onPressed: _exportCsv),
-          IconButton(icon: const Icon(Icons.picture_as_pdf_outlined), tooltip: 'Експорт PDF', onPressed: _exportPdf),
+          IconButton(
+            icon: const Icon(Icons.file_upload_outlined),
+            tooltip: 'Імпорт CSV',
+            onPressed: _importCsv,
+          ),
+          IconButton(
+            icon: const Icon(Icons.ios_share),
+            tooltip: 'Експорт CSV',
+            onPressed: _exportCsv,
+          ),
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            tooltip: 'Експорт PDF',
+            onPressed: _exportPdf,
+          ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  DropdownButtonFormField<int?>(
-                    initialValue: _filterDivisionId,
-                    decoration: const InputDecoration(labelText: 'Управління'),
-                    items: [
-                      const DropdownMenuItem<int?>(value: null, child: Text('Усі управління')),
-                      for (final d in _divisions) DropdownMenuItem<int?>(value: d.id, child: Text(d.name)),
-                    ],
-                    onChanged: (v) => setState(() {
-                      _filterDivisionId = v;
-                      _filterBuildingId = null;
-                      _filterFloorId = null;
-                      _territoryFilterId = null;
-                    }),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<int?>(
-                    initialValue: _filterBuildingId,
-                    decoration: const InputDecoration(labelText: 'Будівля'),
-                    items: [
-                      const DropdownMenuItem<int?>(value: null, child: Text('Усі будівлі')),
-                      for (final b in buildings) DropdownMenuItem<int?>(value: b.id, child: Text(b.name)),
-                    ],
-                    onChanged: _filterDivisionId == null
-                        ? null
-                        : (v) => setState(() {
+      body: RefreshIndicator(
+        onRefresh: _reload,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    DropdownButtonFormField<int?>(
+                      initialValue: _filterDivisionId,
+                      decoration: const InputDecoration(
+                        labelText: 'Управління',
+                      ),
+                      items: [
+                        const DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text('Усі управління'),
+                        ),
+                        for (final d in _divisions)
+                          DropdownMenuItem<int?>(
+                            value: d.id,
+                            child: Text(d.name),
+                          ),
+                      ],
+                      onChanged: (v) => setState(() {
+                        _filterDivisionId = v;
+                        _filterBuildingId = null;
+                        _filterFloorId = null;
+                        _territoryFilterId = null;
+                      }),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<int?>(
+                      initialValue: _filterBuildingId,
+                      decoration: const InputDecoration(labelText: 'Будівля'),
+                      items: [
+                        const DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text('Усі будівлі'),
+                        ),
+                        for (final b in buildings)
+                          DropdownMenuItem<int?>(
+                            value: b.id,
+                            child: Text(b.name),
+                          ),
+                      ],
+                      onChanged: _filterDivisionId == null
+                          ? null
+                          : (v) => setState(() {
                               _filterBuildingId = v;
                               _filterFloorId = null;
                             }),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<int?>(
-                    initialValue: _filterFloorId,
-                    decoration: const InputDecoration(labelText: 'Поверх'),
-                    items: [
-                      const DropdownMenuItem<int?>(value: null, child: Text('Усі поверхи')),
-                      for (final f in floors) DropdownMenuItem<int?>(value: f.id, child: Text(f.name)),
-                    ],
-                    onChanged: _filterBuildingId == null ? null : (v) => setState(() => _filterFloorId = v),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (totals.hasShortage)
-            Card(
-              color: Colors.red.withValues(alpha: 0.08),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.warning_amber_rounded, color: Colors.red),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Виявлено недостачу',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.red),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<int?>(
+                      initialValue: _filterFloorId,
+                      decoration: const InputDecoration(labelText: 'Поверх'),
+                      items: [
+                        const DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text('Усі поверхи'),
                         ),
+                        for (final f in floors)
+                          DropdownMenuItem<int?>(
+                            value: f.id,
+                            child: Text(f.name),
+                          ),
                       ],
+                      onChanged: _filterBuildingId == null
+                          ? null
+                          : (v) => setState(() => _filterFloorId = v),
                     ),
-                    const SizedBox(height: 8),
-                    if (totals.totalShortageLiters > 0)
-                      Text('Бракує вогнегасної речовини (загальні приміщення): '
-                          '${totals.totalShortageLiters.toStringAsFixed(1)} од.'),
-                    if (totals.totalMissingRoomExtinguishers > 0)
-                      Text('Бракує вогнегасників ВВК у кабінетах з ПК: '
-                          '${totals.totalMissingRoomExtinguishers} шт.'),
                   ],
                 ),
               ),
             ),
-          if (totals.hasShortage) const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Загалом по будівлях', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  Text('Вогнегасна речовина (звичайні приміщення): ${totals.totalLiters.toStringAsFixed(0)} л'),
-                  const SizedBox(height: 4),
-                  const Text('Вогнегасники для кабінетів з ПК (за нормою):'),
-                  if (totals.extinguisherCounts.isEmpty) const Text('  — немає кабінетів з ПК'),
-                  for (final entry in totals.extinguisherCounts.entries)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8, top: 2),
-                      child: Text('• ${entry.value} шт. — ${entry.key}'),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          if (territoryEntries.isNotEmpty) ...[
             const SizedBox(height: 12),
+            if (totals.hasShortage)
+              Card(
+                color: Colors.red.withValues(alpha: 0.08),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.warning_amber_rounded,
+                            color: Colors.red,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Виявлено недостачу',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(color: Colors.red),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (totals.totalShortageLiters > 0)
+                        Text(
+                          'Бракує вогнегасної речовини (загальні приміщення): '
+                          '${totals.totalShortageLiters.toStringAsFixed(1)} од.',
+                        ),
+                      if (totals.totalMissingRoomExtinguishers > 0)
+                        Text(
+                          'Бракує вогнегасників ВВК у кабінетах з ПК: '
+                          '${totals.totalMissingRoomExtinguishers} шт.',
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            if (totals.hasShortage) const SizedBox(height: 12),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Територія (ТВУЗ)', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 8),
-                    if (territoryEntries.length > 1)
-                      DropdownButtonFormField<int?>(
-                        initialValue: _territoryFilterId,
-                        decoration: const InputDecoration(labelText: 'Фільтр за площею (територією)'),
-                        items: [
-                          const DropdownMenuItem<int?>(value: null, child: Text('Усі території (сума)')),
-                          for (final t in territoryEntries)
-                            DropdownMenuItem<int?>(value: t.calc.territory.id, child: Text(t.calc.territory.name)),
-                        ],
-                        onChanged: (v) => setState(() => _territoryFilterId = v),
-                      ),
-                    const SizedBox(height: 8),
-                    Text('Потрібно пожежних щитів: $shownShields'),
-                  ],
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 16),
-          Text('Деталізація по поверхах', style: Theme.of(context).textTheme.titleMedium),
-          if (floorEntries.isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Text('Немає поверхів за обраним фільтром.'),
-            ),
-          for (final entry in floorEntries)
-            Card(
-              margin: const EdgeInsets.only(top: 8),
-              child: ListTile(
-                title: Text('${entry.divisionName} / ${entry.buildingName} — ${entry.floor.name}'),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Залишкова площа: ${entry.calc.remainingArea.toStringAsFixed(0)} м²'),
-                    Text('Потрібно: ${entry.calc.requiredLiters.toStringAsFixed(0)} л'),
-                    Text('Наявно: ${entry.calc.assignedCapacityLiters.toStringAsFixed(1)} од.'),
-                    if (entry.calc.shortageLiters > 0)
-                      Text(
-                        'Недостача: ${entry.calc.shortageLiters.toStringAsFixed(1)} од.',
-                        style: const TextStyle(color: Colors.red),
-                      ),
                     Text(
-                      'Кабінетів з ПК: ${entry.calc.computerRooms.length}'
-                      '${entry.calc.computerRooms.any((r) => r.shortageCount > 0) ? " (бракує вогнегасників у ${entry.calc.computerRooms.where((r) => r.shortageCount > 0).length})" : ""}',
+                      'Загалом по будівлях',
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Вогнегасна речовина (звичайні приміщення): ${totals.totalLiters.toStringAsFixed(0)} л',
+                    ),
+                    const SizedBox(height: 4),
+                    const Text('Вогнегасники для кабінетів з ПК (за нормою):'),
+                    if (totals.extinguisherCounts.isEmpty)
+                      const Text('  — немає кабінетів з ПК'),
+                    for (final entry in totals.extinguisherCounts.entries)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8, top: 2),
+                        child: Text('• ${entry.value} шт. — ${entry.key}'),
+                      ),
                   ],
                 ),
               ),
             ),
-        ],
+            if (territoryEntries.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Територія (ТВУЗ)',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      if (territoryEntries.length > 1)
+                        DropdownButtonFormField<int?>(
+                          initialValue: _territoryFilterId,
+                          decoration: const InputDecoration(
+                            labelText: 'Фільтр за площею (територією)',
+                          ),
+                          items: [
+                            const DropdownMenuItem<int?>(
+                              value: null,
+                              child: Text('Усі території (сума)'),
+                            ),
+                            for (final t in territoryEntries)
+                              DropdownMenuItem<int?>(
+                                value: t.calc.territory.id,
+                                child: Text(t.calc.territory.name),
+                              ),
+                          ],
+                          onChanged: (v) =>
+                              setState(() => _territoryFilterId = v),
+                        ),
+                      const SizedBox(height: 8),
+                      Text('Потрібно пожежних щитів: $shownShields'),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Text(
+              'Деталізація по поверхах',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            if (floorEntries.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('Немає поверхів за обраним фільтром.'),
+              ),
+            for (final entry in floorEntries)
+              Card(
+                margin: const EdgeInsets.only(top: 8),
+                child: ListTile(
+                  title: Text(
+                    '${entry.divisionName} / ${entry.buildingName} — ${entry.floor.name}',
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Залишкова площа: ${entry.calc.remainingArea.toStringAsFixed(0)} м²',
+                      ),
+                      Text(
+                        'Потрібно: ${entry.calc.requiredLiters.toStringAsFixed(0)} л',
+                      ),
+                      Text(
+                        'Наявно: ${entry.calc.assignedCapacityLiters.toStringAsFixed(1)} од.',
+                      ),
+                      if (entry.calc.shortageLiters > 0)
+                        Text(
+                          'Недостача: ${entry.calc.shortageLiters.toStringAsFixed(1)} од.',
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      Text(
+                        'Кабінетів з ПК: ${entry.calc.computerRooms.length}'
+                        '${entry.calc.computerRooms.any((r) => r.shortageCount > 0) ? " (бракує вогнегасників у ${entry.calc.computerRooms.where((r) => r.shortageCount > 0).length})" : ""}',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
