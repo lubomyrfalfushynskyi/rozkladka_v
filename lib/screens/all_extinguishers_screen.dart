@@ -1,9 +1,4 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../models/building.dart';
 import '../models/division.dart';
@@ -11,7 +6,6 @@ import '../models/extinguisher.dart';
 import '../models/extinguisher_type.dart';
 import '../models/floor.dart';
 import '../models/room.dart';
-import '../services/csv_service.dart';
 import '../services/database_service.dart';
 import '../widgets/confirm_delete.dart';
 import '../widgets/page_help.dart';
@@ -166,118 +160,6 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
     }).toList();
   }
 
-  /// Опис поточного рівня фільтра для назви файлу й підпису — щоб звіти з
-  /// різних рівнів (усі управління / одне управління / будівля / поверх /
-  /// кабінет) було видно з самої назви файлу.
-  String get _scopeSuffix {
-    if (_filterRoomId != null) {
-      final room = _computerRoomsByFloor[_filterFloorId]?.firstWhere((r) => r.id == _filterRoomId);
-      return _sanitize(room?.name ?? 'кабінет');
-    }
-    if (_filterFloorId != null) {
-      final floor = _floorsByBuilding[_filterBuildingId]?.firstWhere((f) => f.id == _filterFloorId);
-      return _sanitize(floor?.name ?? 'поверх');
-    }
-    if (_filterBuildingId != null) {
-      final building = _buildingsByDivision[_filterDivisionId]?.firstWhere((b) => b.id == _filterBuildingId);
-      return _sanitize(building?.name ?? 'будівля');
-    }
-    if (_filterDivisionId != null) {
-      final division = _divisions.firstWhere((d) => d.id == _filterDivisionId);
-      return _sanitize(division.name);
-    }
-    return 'Усі_управління';
-  }
-
-  String _sanitize(String name) => name.trim().replaceAll(RegExp(r'\s+'), '_');
-
-  Future<void> _exportCsv() async {
-    final defaultName = 'Вогнегасники_${_scopeSuffix}_${_formatTimestamp(DateTime.now())}';
-    final controller = TextEditingController(text: defaultName);
-    final fileName = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Експорт у CSV'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Назва файлу'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Скасувати')),
-          FilledButton(
-            onPressed: () => Navigator.pop(
-              context,
-              controller.text.trim().isEmpty ? defaultName : controller.text.trim(),
-            ),
-            child: const Text('Експортувати'),
-          ),
-        ],
-      ),
-    );
-    if (fileName == null) return;
-    if (!mounted) return;
-
-    final csvText = await CsvService.buildCsv(
-      divisionId: _filterDivisionId,
-      buildingId: _filterBuildingId,
-      floorId: _filterFloorId,
-      roomId: _filterRoomId,
-    );
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/$fileName.csv');
-    await file.writeAsString(csvText);
-
-    if (!mounted) return;
-    await SharePlus.instance.share(
-      ShareParams(files: [XFile(file.path)], text: 'Звіт по вогнегасниках — $fileName'),
-    );
-  }
-
-  String _formatTimestamp(DateTime dt) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${dt.year}-${two(dt.month)}-${two(dt.day)}_${two(dt.hour)}${two(dt.minute)}';
-  }
-
-  Future<void> _importCsv() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['csv'],
-    );
-    if (result == null || result.files.single.path == null) return;
-
-    final file = File(result.files.single.path!);
-    final csvText = await file.readAsString();
-    final importResult = await CsvService.importCsv(csvText);
-    _reload();
-
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Імпорт завершено'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Імпортовано: ${importResult.imported} шт.'),
-              if (importResult.skipped.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text('Пропущено (${importResult.skipped.length}):', style: const TextStyle(fontWeight: FontWeight.bold)),
-                for (final s in importResult.skipped)
-                  Padding(padding: const EdgeInsets.only(top: 2), child: Text('• $s')),
-              ],
-            ],
-          ),
-        ),
-        actions: [
-          FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Гаразд')),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final buildings = _filterDivisionId != null ? (_buildingsByDivision[_filterDivisionId!] ?? []) : <Building>[];
@@ -292,17 +174,12 @@ class _AllExtinguishersScreenState extends State<AllExtinguishersScreen> {
           PageHelpAction(
             title: 'Вогнегасники',
             points: [
-              'Фільтри Управління/Будівля/Поверх/Кабінет звужують список каскадно — оберіть рівень, '
-                  'на якому потрібен звіт.',
-              'Експорт формує CSV саме за поточним фільтром (нічого не обрано — звіт по всіх '
-                  'управліннях) і відкриває системне "Поділитися" з файлом.',
-              'Імпорт читає CSV через провідник — управління/будівля створюються автоматично за '
-                  'назвою, а поверх/кабінет мають вже існувати (їхню площу неможливо відновити з CSV).',
+              'Фільтри Управління/Будівля/Поверх/Кабінет звужують список каскадно.',
               'Олівець і кошик на записі — редагувати чи видалити конкретний вогнегасник.',
+              'Експорт/імпорт CSV і PDF-звіт — на сторінці "Статистика" (іконка 📊), не тут: '
+                  'не всі об\'єкти мають вогнегасники, а статистика потрібна на кожному рівні.',
             ],
           ),
-          IconButton(icon: const Icon(Icons.file_upload_outlined), tooltip: 'Імпорт CSV', onPressed: _importCsv),
-          IconButton(icon: const Icon(Icons.ios_share), tooltip: 'Експорт / Поділитися', onPressed: _exportCsv),
         ],
       ),
       body: _loading

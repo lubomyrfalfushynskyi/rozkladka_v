@@ -10,6 +10,7 @@ import '../widgets/page_help.dart';
 import 'all_extinguishers_screen.dart';
 import 'building_screen.dart';
 import 'select_extinguisher_target_screen.dart';
+import 'summary_screen.dart';
 import 'territory_form_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -111,9 +112,23 @@ class _HomeScreenState extends State<HomeScreen> {
               'Територія (ТВУЗ) — рахує потрібну кількість пожежних щитів за площею. Натисни, щоб '
                   'редагувати назву/площу.',
               'Вогнегасники внизу списку — перегляд/додавання/редагування усіх вогнегасників цього '
-                  'управління, з фільтрами і CSV.',
+                  'управління.',
+              'Іконка 📊 вгорі — статистика саме цього управління, з CSV-експортом/імпортом і PDF-звітом.',
               'Кнопки внизу праворуч — додати вогнегасник, територію або будівлю.',
             ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.bar_chart_outlined),
+            tooltip: 'Статистика управління',
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SummaryScreen(initialDivisionId: widget.division.id),
+                ),
+              );
+              _reload();
+            },
           ),
         ],
       ),

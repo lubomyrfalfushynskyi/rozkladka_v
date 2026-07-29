@@ -4,28 +4,53 @@ import '../models/extinguisher.dart';
 import '../models/extinguisher_import_result.dart';
 import '../models/extinguisher_model_catalog.dart';
 import '../models/extinguisher_type.dart';
+import '../models/floor.dart';
+import '../models/room.dart';
+import '../models/territory.dart';
 import 'database_service.dart';
 
-const String generalAreaLabel = 'Загальна площа';
+/// BOM (byte order mark) на початку файлу — без нього Excel на Windows
+/// вгадує кодування за системною локаллю замість UTF-8 і показує кракозябри
+/// для кирилиці; з BOM Excel, WPS і Android однаково коректно розпізнають
+/// UTF-8. `writeAsString`/`csv.decode` працюють з цим символом прозоро —
+/// байти BOM (EF BB BF) виходять з кодування самого символу U+FEFF.
+const String _bom = '\uFEFF';
+
+const String rowTypeExtinguisher = 'Вогнегасник';
+const String rowTypeFloor = 'Поверх';
+const String rowTypeRoom = 'Кабінет';
+const String rowTypeTerritory = 'Територія';
 
 const List<String> csvHeaders = [
-  'Ідентифікатор',
+  'Тип рядка',
   'Управління',
   'Будівля',
   'Поверх',
+  'Площа поверху',
   'Кабінет',
+  'Площа кабінету',
+  'Кабінет з ПК',
+  'Територія',
+  'Площа території',
   'Тип',
   'Модель',
   'Ємність',
   'Одиниця',
   'Заводський номер',
   'Інвентарний номер',
+  'Ідентифікатор',
 ];
 
+/// Формує/читає повне дерево даних (управління → будівлі → поверхи →
+/// кабінети → вогнегасники, і окремо території/щити) в одному CSV-файлі.
+/// Кожен рядок має один із чотирьох "типів" (перша колонка) — так порожні
+/// поверхи/кабінети (без жодного вогнегасника) теж передаються, зі своєю
+/// площею, а не губляться.
 class CsvService {
-  /// Формує CSV-звіт по вогнегасниках. Без параметрів — по всіх управліннях
-  /// (глобальний звіт). З `divisionId`/`buildingId`/`floorId`/`roomId` —
-  /// звіт обмежується відповідним рівнем ієрархії (звіт "на цьому рівні").
+  /// Формує CSV. Без параметрів — по всіх управліннях (глобальний звіт). З
+  /// `divisionId`/`buildingId`/`floorId`/`roomId` — обмежується відповідним
+  /// рівнем ієрархії. Території входять у звіт лише на рівні управління чи
+  /// вище (вони не належать конкретній будівлі/поверху).
   static Future<String> buildCsv({
     int? divisionId,
     int? buildingId,
@@ -45,60 +70,121 @@ class CsvService {
         final floors = await db.getFloorsForBuilding(building.id!);
         for (final floor in floors) {
           if (floorId != null && floor.id != floorId) continue;
+
+          var floorHasExtinguisherRow = false;
           if (roomId == null) {
             final floorExtinguishers = await db.getExtinguishersForFloor(floor.id!);
             for (final e in floorExtinguishers) {
-              rows.add(_row(e, division.name, building.name, floor.name, generalAreaLabel, customModels));
+              rows.add(_extinguisherRow(e, division.name, building.name, floor, null, customModels));
+              floorHasExtinguisherRow = true;
+            }
+            if (!floorHasExtinguisherRow) {
+              rows.add(_floorPlaceholderRow(division.name, building.name, floor));
             }
           }
+
           final rooms = await db.getRoomsForFloor(floor.id!);
-          for (final room in rooms.where((r) => r.hasComputer)) {
+          for (final room in rooms) {
             if (roomId != null && room.id != roomId) continue;
-            final roomExtinguishers = await db.getExtinguishersForRoom(room.id!);
-            for (final e in roomExtinguishers) {
-              rows.add(_row(e, division.name, building.name, floor.name, room.name, customModels));
+            final roomExtinguishers = room.hasComputer ? await db.getExtinguishersForRoom(room.id!) : <Extinguisher>[];
+            if (roomExtinguishers.isEmpty) {
+              rows.add(_roomPlaceholderRow(division.name, building.name, floor, room));
+            } else {
+              for (final e in roomExtinguishers) {
+                rows.add(_extinguisherRow(e, division.name, building.name, floor, room, customModels));
+              }
             }
           }
         }
       }
+
+      if (buildingId == null && floorId == null && roomId == null) {
+        final territories = await db.getTerritoriesForDivision(division.id!);
+        for (final t in territories) {
+          rows.add(_territoryRow(division.name, t));
+        }
+      }
     }
 
-    return csv.encode(rows);
+    return _bom + csv.encode(rows);
   }
 
-  static List<String> _row(
+  static List<String> _blankRow() => List<String>.filled(csvHeaders.length, '');
+
+  static List<String> _extinguisherRow(
     Extinguisher e,
     String division,
     String building,
-    String floor,
-    String room,
+    Floor floor,
+    Room? room,
     List<ExtinguisherModel> customModels,
   ) {
     final model = ExtinguisherModelCatalog.findByTypeAndCapacityWithCustom(e.type, e.capacityLiters, customModels);
-    return [
-      e.id?.toString() ?? '',
-      division,
-      building,
-      floor,
-      room,
-      e.type.code,
-      model?.code ?? '',
-      _formatCapacity(e.capacityLiters),
-      e.type.unit,
-      e.serialNumber,
-      e.inventoryNumber,
-    ];
+    final row = _blankRow();
+    row[0] = rowTypeExtinguisher;
+    row[1] = division;
+    row[2] = building;
+    row[3] = floor.name;
+    row[4] = _formatNumber(floor.totalArea);
+    if (room != null) {
+      row[5] = room.name;
+      row[6] = _formatNumber(room.area);
+      row[7] = room.hasComputer ? 'так' : 'ні';
+    }
+    row[10] = e.type.code;
+    row[11] = model?.code ?? '';
+    row[12] = _formatNumber(e.capacityLiters);
+    row[13] = e.type.unit;
+    row[14] = e.serialNumber;
+    row[15] = e.inventoryNumber;
+    row[16] = e.id?.toString() ?? '';
+    return row;
   }
 
-  static String _formatCapacity(double value) =>
+  static List<String> _floorPlaceholderRow(String division, String building, Floor floor) {
+    final row = _blankRow();
+    row[0] = rowTypeFloor;
+    row[1] = division;
+    row[2] = building;
+    row[3] = floor.name;
+    row[4] = _formatNumber(floor.totalArea);
+    return row;
+  }
+
+  static List<String> _roomPlaceholderRow(String division, String building, Floor floor, Room room) {
+    final row = _blankRow();
+    row[0] = rowTypeRoom;
+    row[1] = division;
+    row[2] = building;
+    row[3] = floor.name;
+    row[4] = _formatNumber(floor.totalArea);
+    row[5] = room.name;
+    row[6] = _formatNumber(room.area);
+    row[7] = room.hasComputer ? 'так' : 'ні';
+    return row;
+  }
+
+  static List<String> _territoryRow(String division, Territory t) {
+    final row = _blankRow();
+    row[0] = rowTypeTerritory;
+    row[1] = division;
+    row[8] = t.name;
+    row[9] = _formatNumber(t.area);
+    return row;
+  }
+
+  static String _formatNumber(double value) =>
       value == value.roundToDouble() ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
 
-  /// Імпортує вогнегасники з CSV. Управління/будівля створюються
-  /// автоматично за назвою, якщо їх ще немає. Поверх і кабінет мають вже
-  /// існувати (їхню площу неможливо відновити з CSV) — якщо не знайдено,
-  /// рядок пропускається і потрапляє у список skipped.
-  static Future<ExtinguisherImportResult> importCsv(String csvText) async {
+  /// Імпортує повне дерево даних з CSV. Управління/будівля/поверх/кабінет/
+  /// територія створюються автоматично за назвою, якщо їх ще немає; якщо
+  /// вже існують — їхня площа (і ознака ПК для кабінету) оновлюється
+  /// значенням з файлу. Вогнегасники дедуплікуються за інвентарним номером
+  /// у межах кабінету/поверху — повторний імпорт того самого файлу
+  /// оновлює наявні записи, а не плодить дублікати.
+  static Future<ExtinguisherImportResult> importCsv(String csvTextRaw) async {
     final db = DatabaseService.instance;
+    final csvText = csvTextRaw.startsWith(_bom) ? csvTextRaw.substring(1) : csvTextRaw;
     final rows = csv.decode(csvText);
     if (rows.isEmpty) return const ExtinguisherImportResult(imported: 0, skipped: []);
 
@@ -111,51 +197,153 @@ class CsvService {
         skipped.add('Рядок ${i + 1}: недостатньо колонок');
         continue;
       }
+      final rowType = row[0].toString().trim();
       final divisionName = row[1].toString().trim();
-      final buildingName = row[2].toString().trim();
-      final floorName = row[3].toString().trim();
-      final roomName = row[4].toString().trim();
-      final typeCode = row[5].toString().trim();
-      final capacityText = row[7].toString().trim().replaceAll(',', '.');
-      final serial = row[9].toString().trim();
-      final inventory = row[10].toString().trim();
-
-      final capacity = double.tryParse(capacityText);
-      if (divisionName.isEmpty || buildingName.isEmpty || floorName.isEmpty || capacity == null) {
-        skipped.add('Рядок ${i + 1}: відсутні обовʼязкові поля');
+      if (divisionName.isEmpty) {
+        skipped.add('Рядок ${i + 1}: не вказано управління');
         continue;
       }
 
-      final divisionId = await db.findOrCreateDivision(divisionName);
-      final buildingId = await db.findOrCreateBuilding(divisionId, buildingName);
-      final floor = await db.findFloorByName(buildingId, floorName);
-      if (floor == null) {
-        skipped.add('Рядок ${i + 1}: поверх "$floorName" не знайдено в будівлі "$buildingName" — спочатку створи його');
-        continue;
-      }
-
-      int? roomId;
-      if (roomName.isNotEmpty && roomName != generalAreaLabel) {
-        final room = await db.findRoomByName(floor.id!, roomName);
-        if (room == null) {
-          skipped.add('Рядок ${i + 1}: кабінет "$roomName" не знайдено на поверсі "$floorName" — спочатку створи його');
-          continue;
+      try {
+        switch (rowType) {
+          case rowTypeTerritory:
+            await _importTerritoryRow(db, row, i, divisionName, skipped);
+            imported++;
+            break;
+          case rowTypeFloor:
+            await _importFloorRow(db, row, i, divisionName, skipped);
+            imported++;
+            break;
+          case rowTypeRoom:
+            await _importRoomRow(db, row, i, divisionName, skipped);
+            imported++;
+            break;
+          default:
+            // Порожній "Тип рядка" (сумісність зі старими файлами без цієї
+            // колонки) теж трактується як вогнегасник.
+            await _importExtinguisherRow(db, row, i, divisionName, skipped);
+            imported++;
         }
-        roomId = room.id;
+      } on _SkipRow {
+        // причина вже додана в skipped всередині _import*Row
       }
-
-      final extinguisher = Extinguisher(
-        serialNumber: serial,
-        inventoryNumber: inventory,
-        type: ExtinguisherType.fromCode(typeCode),
-        capacityLiters: capacity,
-        roomId: roomId,
-        floorId: roomId == null ? floor.id : null,
-      );
-      await db.insertExtinguisher(extinguisher);
-      imported++;
     }
 
     return ExtinguisherImportResult(imported: imported, skipped: skipped);
   }
+
+  static Future<void> _importTerritoryRow(
+    DatabaseService db,
+    List<dynamic> row,
+    int i,
+    String divisionName,
+    List<String> skipped,
+  ) async {
+    final name = row[8].toString().trim();
+    final area = double.tryParse(row[9].toString().trim().replaceAll(',', '.'));
+    if (name.isEmpty || area == null) {
+      skipped.add('Рядок ${i + 1}: відсутні дані території');
+      throw _SkipRow();
+    }
+    final divisionId = await db.findOrCreateDivision(divisionName);
+    await db.findOrCreateTerritory(divisionId, name, area);
+  }
+
+  static Future<void> _importFloorRow(
+    DatabaseService db,
+    List<dynamic> row,
+    int i,
+    String divisionName,
+    List<String> skipped,
+  ) async {
+    final buildingName = row[2].toString().trim();
+    final floorName = row[3].toString().trim();
+    final floorArea = double.tryParse(row[4].toString().trim().replaceAll(',', '.'));
+    if (buildingName.isEmpty || floorName.isEmpty || floorArea == null) {
+      skipped.add('Рядок ${i + 1}: відсутні дані поверху');
+      throw _SkipRow();
+    }
+    final divisionId = await db.findOrCreateDivision(divisionName);
+    final buildingId = await db.findOrCreateBuilding(divisionId, buildingName);
+    await db.findOrCreateFloor(buildingId, floorName, floorArea);
+  }
+
+  static Future<void> _importRoomRow(
+    DatabaseService db,
+    List<dynamic> row,
+    int i,
+    String divisionName,
+    List<String> skipped,
+  ) async {
+    final buildingName = row[2].toString().trim();
+    final floorName = row[3].toString().trim();
+    final floorArea = double.tryParse(row[4].toString().trim().replaceAll(',', '.'));
+    final roomName = row[5].toString().trim();
+    final roomArea = double.tryParse(row[6].toString().trim().replaceAll(',', '.'));
+    final hasComputer = row[7].toString().trim().toLowerCase() == 'так';
+    if (buildingName.isEmpty || floorName.isEmpty || floorArea == null || roomName.isEmpty || roomArea == null) {
+      skipped.add('Рядок ${i + 1}: відсутні дані кабінету');
+      throw _SkipRow();
+    }
+    final divisionId = await db.findOrCreateDivision(divisionName);
+    final buildingId = await db.findOrCreateBuilding(divisionId, buildingName);
+    final floor = await db.findOrCreateFloor(buildingId, floorName, floorArea);
+    await db.findOrCreateRoom(floor.id!, roomName, roomArea, hasComputer);
+  }
+
+  static Future<void> _importExtinguisherRow(
+    DatabaseService db,
+    List<dynamic> row,
+    int i,
+    String divisionName,
+    List<String> skipped,
+  ) async {
+    final buildingName = row[2].toString().trim();
+    final floorName = row[3].toString().trim();
+    final floorArea = double.tryParse(row[4].toString().trim().replaceAll(',', '.'));
+    final roomName = row[5].toString().trim();
+    final typeCode = row[10].toString().trim();
+    final capacity = double.tryParse(row[12].toString().trim().replaceAll(',', '.'));
+    final serial = row[14].toString().trim();
+    final inventory = row[15].toString().trim();
+
+    if (buildingName.isEmpty || floorName.isEmpty || floorArea == null || capacity == null) {
+      skipped.add('Рядок ${i + 1}: відсутні обовʼязкові поля вогнегасника');
+      throw _SkipRow();
+    }
+
+    final divisionId = await db.findOrCreateDivision(divisionName);
+    final buildingId = await db.findOrCreateBuilding(divisionId, buildingName);
+    final floor = await db.findOrCreateFloor(buildingId, floorName, floorArea);
+
+    int? roomId;
+    if (roomName.isNotEmpty) {
+      final roomArea = double.tryParse(row[6].toString().trim().replaceAll(',', '.')) ?? 0;
+      final hasComputer = row[7].toString().trim().toLowerCase() == 'так';
+      final room = await db.findOrCreateRoom(floor.id!, roomName, roomArea, hasComputer);
+      roomId = room.id;
+    }
+
+    // Дедуплікація за інвентарним номером у межах кабінету/поверху.
+    final existingList =
+        roomId != null ? await db.getExtinguishersForRoom(roomId) : await db.getExtinguishersForFloor(floor.id!);
+    final existing = existingList.where((e) => e.inventoryNumber == inventory);
+
+    final extinguisher = Extinguisher(
+      id: existing.isNotEmpty ? existing.first.id : null,
+      serialNumber: serial,
+      inventoryNumber: inventory,
+      type: ExtinguisherType.fromCode(typeCode),
+      capacityLiters: capacity,
+      roomId: roomId,
+      floorId: roomId == null ? floor.id : null,
+    );
+    if (existing.isNotEmpty) {
+      await db.updateExtinguisher(extinguisher);
+    } else {
+      await db.insertExtinguisher(extinguisher);
+    }
+  }
 }
+
+class _SkipRow implements Exception {}

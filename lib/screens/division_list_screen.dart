@@ -84,15 +84,16 @@ class _DivisionListScreenState extends State<DivisionListScreen> {
               'Натисни на Управління, щоб перейти в нього; олівець — перейменувати; кошик — видалити '
                   '(з підтвердженням, разом з усім вмістом).',
               '"+ Управління" внизу — додати нове.',
-              'Іконка вогнегасника вгорі — звіт по вогнегасниках одразу по всіх управліннях, з CSV '
-                  'експортом/імпортом.',
-              'Іконка звіту — зведений розрахунок недостачі по всіх управліннях.',
+              'Іконка вогнегасника вгорі — перегляд/додавання/редагування вогнегасників одразу по '
+                  'всіх управліннях.',
+              'Іконка 📊 — статистика по всіх управліннях: розрахунок недостачі, CSV-експорт/імпорт '
+                  '(повне дерево даних для передачі чи резервної копії) і PDF-звіт.',
               'Іконка шестерні — налаштування (дозволені типи, номенклатура моделей).',
             ],
           ),
           IconButton(
             icon: const Icon(Icons.local_fire_department_outlined),
-            tooltip: 'Вогнегасники (усі управління) — CSV',
+            tooltip: 'Вогнегасники (усі управління)',
             onPressed: () async {
               await Navigator.push(
                 context,
@@ -102,8 +103,8 @@ class _DivisionListScreenState extends State<DivisionListScreen> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.summarize),
-            tooltip: 'Зведений звіт',
+            icon: const Icon(Icons.bar_chart_outlined),
+            tooltip: 'Статистика (усі управління)',
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const SummaryScreen()),

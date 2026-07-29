@@ -9,6 +9,7 @@ import '../widgets/confirm_delete.dart';
 import '../widgets/page_help.dart';
 import 'all_extinguishers_screen.dart';
 import 'room_form_screen.dart';
+import 'summary_screen.dart';
 
 class FloorScreen extends StatefulWidget {
   final Floor floor;
@@ -74,8 +75,25 @@ class _FloorScreenState extends State<FloorScreen> {
               '"Вогнегасники загальної площі" — вогнегасники поверху поза кабінетами з ПК.',
               'Кабінети — список, іконка вогню поруч показує стан (червона — не встановлено, зелена — є); '
                   'олівець — редагувати назву/площу/ознаку ПК; кошик — видалити.',
+              'Іконка 📊 вгорі — статистика саме цього поверху, з CSV-експортом/імпортом і PDF-звітом.',
               '"+ Кабінет" внизу — додати новий кабінет.',
             ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.bar_chart_outlined),
+            tooltip: 'Статистика поверху',
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SummaryScreen(
+                    initialBuildingId: widget.floor.buildingId,
+                    initialFloorId: widget.floor.id,
+                  ),
+                ),
+              );
+              _reload();
+            },
           ),
         ],
       ),

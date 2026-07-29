@@ -9,6 +9,7 @@ import '../widgets/confirm_delete.dart';
 import '../widgets/page_help.dart';
 import 'all_extinguishers_screen.dart';
 import 'floor_screen.dart';
+import 'summary_screen.dart';
 
 class BuildingScreen extends StatefulWidget {
   final Building building;
@@ -117,11 +118,28 @@ class _BuildingScreenState extends State<BuildingScreen> {
           PageHelpAction(
             title: widget.building.name,
             points: [
-              '"Вогнегасники будівлі" — звіт по всіх вогнегасниках цієї будівлі (усі поверхи/кабінети), з CSV.',
+              '"Вогнегасники будівлі" — перегляд/додавання/редагування вогнегасників цієї будівлі.',
               'Поверхи — натисни, щоб зайти й керувати кабінетами; олівець — редагувати назву/площу; '
                   'кошик — видалити.',
+              'Іконка 📊 вгорі — статистика саме цієї будівлі, з CSV-експортом/імпортом і PDF-звітом.',
               '"+ Поверх" внизу — додати новий поверх.',
             ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.bar_chart_outlined),
+            tooltip: 'Статистика будівлі',
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SummaryScreen(
+                    initialDivisionId: widget.building.divisionId,
+                    initialBuildingId: widget.building.id,
+                  ),
+                ),
+              );
+              _reload();
+            },
           ),
         ],
       ),
@@ -132,7 +150,7 @@ class _BuildingScreenState extends State<BuildingScreen> {
                 ListTile(
                   leading: const Icon(Icons.local_fire_department_outlined),
                   title: const Text('Вогнегасники будівлі'),
-                  subtitle: const Text('Перегляд, додавання, редагування, CSV'),
+                  subtitle: const Text('Перегляд, додавання, редагування'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () async {
                     await Navigator.push(

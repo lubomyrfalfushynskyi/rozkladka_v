@@ -261,9 +261,7 @@ class DatabaseService {
     return rows.map(Floor.fromMap).toList();
   }
 
-  /// Знаходить поверх за назвою в межах будівлі. НЕ створює новий — площа
-  /// поверху невідома з CSV, тому поверх має вже існувати на приймаючій
-  /// стороні перед імпортом.
+  /// Знаходить поверх за назвою в межах будівлі. НЕ створює новий.
   Future<Floor?> findFloorByName(int buildingId, String name) async {
     final db = await database;
     final rows = await db.query('floors', where: 'buildingId = ?', whereArgs: [buildingId]);
@@ -272,6 +270,21 @@ class DatabaseService {
       if ((row['name'] as String).toLowerCase() == target) return Floor.fromMap(row);
     }
     return null;
+  }
+
+  /// Знаходить поверх за назвою в межах будівлі або створює новий з
+  /// вказаною площею. Якщо вже існує — оновлює його площу значенням з CSV
+  /// (джерело правди — файл, що імпортується, для синхронізації між
+  /// пристроями).
+  Future<Floor> findOrCreateFloor(int buildingId, String name, double totalArea) async {
+    final existing = await findFloorByName(buildingId, name);
+    if (existing == null) {
+      final id = await insertFloor(Floor(buildingId: buildingId, name: name, totalArea: totalArea));
+      return Floor(id: id, buildingId: buildingId, name: name, totalArea: totalArea);
+    }
+    final updated = existing.copyWith(totalArea: totalArea);
+    await updateFloor(updated);
+    return updated;
   }
 
   // Rooms
@@ -302,8 +315,7 @@ class DatabaseService {
     return rows.map(Room.fromMap).toList();
   }
 
-  /// Знаходить кабінет за назвою в межах поверху. НЕ створює новий — площа
-  /// кабінету невідома з CSV.
+  /// Знаходить кабінет за назвою в межах поверху. НЕ створює новий.
   Future<Room?> findRoomByName(int floorId, String name) async {
     final db = await database;
     final rows = await db.query('rooms', where: 'floorId = ?', whereArgs: [floorId]);
@@ -312,6 +324,20 @@ class DatabaseService {
       if ((row['name'] as String).toLowerCase() == target) return Room.fromMap(row);
     }
     return null;
+  }
+
+  /// Знаходить кабінет за назвою в межах поверху або створює новий з
+  /// вказаною площею й ознакою ПК. Якщо вже існує — оновлює площу й ознаку
+  /// ПК значеннями з CSV.
+  Future<Room> findOrCreateRoom(int floorId, String name, double area, bool hasComputer) async {
+    final existing = await findRoomByName(floorId, name);
+    if (existing == null) {
+      final id = await insertRoom(Room(floorId: floorId, name: name, area: area, hasComputer: hasComputer));
+      return Room(id: id, floorId: floorId, name: name, area: area, hasComputer: hasComputer);
+    }
+    final updated = existing.copyWith(area: area, hasComputer: hasComputer);
+    await updateRoom(updated);
+    return updated;
   }
 
   // Territories
@@ -340,6 +366,23 @@ class DatabaseService {
     final db = await database;
     final rows = await db.query('territories', orderBy: 'name');
     return rows.map(Territory.fromMap).toList();
+  }
+
+  /// Знаходить територію за назвою в межах управління або створює нову з
+  /// вказаною площею. Якщо вже існує — оновлює площу значенням з CSV.
+  Future<Territory> findOrCreateTerritory(int divisionId, String name, double area) async {
+    final db = await database;
+    final rows = await db.query('territories', where: 'divisionId = ?', whereArgs: [divisionId]);
+    final target = name.toLowerCase();
+    for (final row in rows) {
+      if ((row['name'] as String).toLowerCase() == target) {
+        final updated = Territory.fromMap(row).copyWith(area: area);
+        await updateTerritory(updated);
+        return updated;
+      }
+    }
+    final id = await insertTerritory(Territory(divisionId: divisionId, name: name, area: area));
+    return Territory(id: id, divisionId: divisionId, name: name, area: area);
   }
 
   // Extinguishers
