@@ -23,10 +23,12 @@ import '../widgets/page_help.dart';
 /// PDF-звіт, бо не всі об'єкти мають вогнегасники (територія/щити), а
 /// статистика потрібна на будь-якому рівні.
 ///
-/// Відображення — воронка "об'єкт/потреба/наявно/недостача": на кожному
-/// рівні фільтра показується підсумок і розбивка по наступному рівню вниз
-/// (усі управління → по управліннях → по будівлях/територіях → по поверхах
-/// → по кабінетах).
+/// Відображення — воронка "об'єкт — наявно/потреба": на кожному рівні
+/// фільтра показується підсумок і розбивка по наступному рівню вниз (усі
+/// управління → по управліннях → по будівлях/територіях → по поверхах →
+/// по кабінетах). Усі три категорії (речовина/ВВК/щити) показуються завжди
+/// — якщо на рівні для категорії нема об'єктів, замість таблиці показується
+/// пояснення, а не порожнеча.
 class SummaryScreen extends StatefulWidget {
   final int? initialDivisionId;
   final int? initialBuildingId;
@@ -55,6 +57,12 @@ class _SummaryScreenState extends State<SummaryScreen> {
   int? _filterDivisionId;
   int? _filterBuildingId;
   int? _filterFloorId;
+
+  final Set<FunnelCategory> _selectedCategories = {
+    FunnelCategory.substance,
+    FunnelCategory.vvk,
+    FunnelCategory.shields,
+  };
 
   @override
   void initState() {
@@ -150,6 +158,29 @@ class _SummaryScreenState extends State<SummaryScreen> {
   List<TerritorySummaryEntry> get _filteredTerritoryEntries {
     if (_filterBuildingId != null || _filterFloorId != null) return [];
     return _allTerritoryEntries.where((e) => _filterDivisionId == null || e.divisionId == _filterDivisionId).toList();
+  }
+
+  List<FunnelTable> get _allTables => FunnelBuilder.build(
+        floorEntries: _filteredFloorEntries,
+        territoryEntries: _filteredTerritoryEntries,
+        filterDivisionId: _filterDivisionId,
+        filterBuildingId: _filterBuildingId,
+        filterFloorId: _filterFloorId,
+      );
+
+  List<FunnelTable> get _visibleTables =>
+      _allTables.where((t) => _selectedCategories.contains(t.category)).toList();
+
+  PdfReportMeta get _reportMeta {
+    final entries = _filteredFloorEntries;
+    final territories = _filteredTerritoryEntries;
+    return PdfReportMeta(
+      divisions: entries.map((e) => e.divisionId).toSet().union(territories.map((e) => e.divisionId).toSet()).length,
+      buildings: entries.map((e) => e.buildingId).toSet().length,
+      floors: entries.map((e) => e.floor.id).toSet().length,
+      computerRooms: entries.fold<int>(0, (s, e) => s + e.calc.computerRooms.length),
+      territories: territories.length,
+    );
   }
 
   String get _scopeTitle {
@@ -254,16 +285,13 @@ class _SummaryScreenState extends State<SummaryScreen> {
   }
 
   Future<void> _exportPdf() async {
-    final tables = FunnelBuilder.build(
-      floorEntries: _filteredFloorEntries,
-      territoryEntries: _filteredTerritoryEntries,
-      filterDivisionId: _filterDivisionId,
-      filterBuildingId: _filterBuildingId,
-      filterFloorId: _filterFloorId,
-    );
     final fileName = 'Звіт_${_sanitize(_scopeTitle)}_${_formatTimestamp(DateTime.now())}';
 
-    final bytes = await PdfService.buildSummaryReport(scopeTitle: _scopeTitle, tables: tables);
+    final bytes = await PdfService.buildSummaryReport(
+      scopeTitle: _scopeTitle,
+      tables: _visibleTables,
+      meta: _reportMeta,
+    );
 
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/$fileName.pdf');
@@ -284,14 +312,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
     final buildings = _filterDivisionId != null ? (_buildingsByDivision[_filterDivisionId!] ?? []) : <Building>[];
     final floors = _filterBuildingId != null ? (_floorsByBuilding[_filterBuildingId!] ?? []) : <Floor>[];
 
-    final tables = FunnelBuilder.build(
-      floorEntries: _filteredFloorEntries,
-      territoryEntries: _filteredTerritoryEntries,
-      filterDivisionId: _filterDivisionId,
-      filterBuildingId: _filterBuildingId,
-      filterFloorId: _filterFloorId,
-    );
-    final hasShortage = tables.any((t) => t.hasShortage);
+    final visibleTables = _visibleTables;
+    final hasShortage = visibleTables.any((t) => t.hasShortage);
 
     return Scaffold(
       appBar: AppBar(
@@ -302,16 +324,21 @@ class _SummaryScreenState extends State<SummaryScreen> {
             points: [
               'Фільтри Управління/Будівля/Поверх звужують розрахунок і звіти до потрібного рівня — '
                   'нічого не обрано = по всіх управліннях разом.',
-              'Кожна таблиця — об\'єкт/потреба/наявно/недостача: перший рядок "Всього" — підсумок '
+              'Кожна таблиця — об\'єкт і дріб наявно/потреба: перший рядок "Всього" — підсумок '
                   'поточного рівня, решта рядків — розбивка по наступному рівню вниз (управління → '
-                  'будівлі → поверхи → кабінети).',
-              'Території (щити) показуються лише на рівні управління чи вище — вони не належать '
-                  'конкретній будівлі/поверху.',
-              'Наявна кількість щитів редагується на сторінці самої території.',
+                  'будівлі → поверхи → кабінети). Червоний колір — недостача.',
+              'Показуються завжди всі три категорії (речовина/ВВК/щити) — якщо для категорії на '
+                  'цьому рівні нема об\'єктів, замість таблиці буде пояснення, чому саме.',
+              'Території (щити) рахуються лише на рівні управління чи вище — вони не належать '
+                  'конкретній будівлі/поверху. Наявна кількість щитів редагується на сторінці самої території.',
+              'Чекбокси над таблицями керують тим, що показано на екрані і що потрапить у PDF-звіт — '
+                  'зручно, якщо якоюсь категорією ділитись не треба. На CSV-експорт (повне дерево '
+                  'даних, резервна копія) чекбокси не впливають.',
               'Експорт CSV — повне дерево даних (управління/будівлі/поверхи з площами/кабінети/'
                   'вогнегасники/території) для передачі чи резервної копії; Імпорт читає такий файл і '
                   'створює чи оновлює об\'єкти автоматично.',
-              'Експорт PDF — друкована версія цих таблиць для офіційної звітності.',
+              'Експорт PDF — друкована версія обраних таблиць (з урахуванням чекбоксів) для офіційної '
+                  'звітності.',
             ],
           ),
           IconButton(icon: const Icon(Icons.file_upload_outlined), tooltip: 'Імпорт CSV', onPressed: _importCsv),
@@ -374,6 +401,32 @@ class _SummaryScreenState extends State<SummaryScreen> {
               ),
             ),
             const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                for (final category in FunnelCategory.values)
+                  FilterChip(
+                    label: Text(_categoryLabel(category)),
+                    selected: _selectedCategories.contains(category),
+                    onSelected: (selected) => setState(() {
+                      if (selected) {
+                        _selectedCategories.add(category);
+                      } else {
+                        _selectedCategories.remove(category);
+                      }
+                    }),
+                  ),
+              ],
+            ),
+            const Padding(
+              padding: EdgeInsets.only(top: 4, bottom: 4),
+              child: Text(
+                'Чекбокси керують переглядом і PDF. CSV завжди містить повне дерево даних.',
+                style: TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+            ),
+            const SizedBox(height: 8),
             if (hasShortage)
               Card(
                 color: Colors.red.withValues(alpha: 0.08),
@@ -394,26 +447,36 @@ class _SummaryScreenState extends State<SummaryScreen> {
                 ),
               ),
             if (hasShortage) const SizedBox(height: 12),
-            if (tables.isEmpty)
+            if (visibleTables.isEmpty)
               const Padding(
                 padding: EdgeInsets.only(top: 8),
-                child: Text('Немає даних за обраним фільтром.'),
+                child: Text('Усі категорії приховані чекбоксами вище.'),
               ),
-            for (final table in tables) _FunnelTableCard(table: table),
+            for (final table in visibleTables) _FunnelTableCard(table: table),
           ],
         ),
       ),
     );
   }
+
+  String _categoryLabel(FunnelCategory category) {
+    switch (category) {
+      case FunnelCategory.substance:
+        return 'Вогнегасна речовина';
+      case FunnelCategory.vvk:
+        return 'Вогнегасники ВВК';
+      case FunnelCategory.shields:
+        return 'Пожежні щити';
+    }
+  }
 }
 
-/// Одна таблиця-воронка: заголовок + рядок "Всього" + розбивка по об'єктах.
+/// Одна таблиця-воронка: заголовок + рядок "Всього" + розбивка по об'єктах,
+/// або — якщо на цьому рівні для категорії нема об'єктів — пояснення чому.
 class _FunnelTableCard extends StatelessWidget {
   final FunnelTable table;
 
   const _FunnelTableCard({required this.table});
-
-  String _fmt(num value) => value == value.roundToDouble() ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
 
   @override
   Widget build(BuildContext context) {
@@ -426,31 +489,37 @@ class _FunnelTableCard extends StatelessWidget {
           children: [
             Text('${table.title}, ${table.unit}', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            _FunnelRowWidget(
-              object: 'Об\'єкт',
-              need: 'Потреба',
-              available: 'Наявно',
-              shortage: 'Недостача',
-              isHeader: true,
-            ),
-            const Divider(height: 12),
-            _FunnelRowWidget(
-              object: table.total.object,
-              need: _fmt(table.total.need),
-              available: _fmt(table.total.available),
-              shortage: _fmt(table.total.shortage),
-              isBold: true,
-              shortageColor: table.total.shortage > 0 ? Colors.red : null,
-            ),
-            for (final row in table.rows) ...[
+            if (table.isEmpty)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Дані відсутні в системі: ${table.emptyMessage}',
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontStyle: FontStyle.italic),
+                    ),
+                  ),
+                ],
+              )
+            else ...[
+              const _FunnelRowWidget(object: 'Об\'єкт', fraction: 'Наявно / Потреба', isHeader: true),
               const Divider(height: 12),
               _FunnelRowWidget(
-                object: row.object,
-                need: _fmt(row.need),
-                available: _fmt(row.available),
-                shortage: _fmt(row.shortage),
-                shortageColor: row.shortage > 0 ? Colors.red : null,
+                object: table.total.object,
+                fraction: table.total.fractionLabel,
+                isBold: true,
+                fractionColor: table.total.shortage > 0 ? Colors.red : null,
               ),
+              for (final row in table.rows) ...[
+                const Divider(height: 12),
+                _FunnelRowWidget(
+                  object: row.object,
+                  fraction: row.fractionLabel,
+                  fractionColor: row.shortage > 0 ? Colors.red : null,
+                ),
+              ],
             ],
           ],
         ),
@@ -461,21 +530,17 @@ class _FunnelTableCard extends StatelessWidget {
 
 class _FunnelRowWidget extends StatelessWidget {
   final String object;
-  final String need;
-  final String available;
-  final String shortage;
+  final String fraction;
   final bool isHeader;
   final bool isBold;
-  final Color? shortageColor;
+  final Color? fractionColor;
 
   const _FunnelRowWidget({
     required this.object,
-    required this.need,
-    required this.available,
-    required this.shortage,
+    required this.fraction,
     this.isHeader = false,
     this.isBold = false,
-    this.shortageColor,
+    this.fractionColor,
   });
 
   @override
@@ -483,17 +548,19 @@ class _FunnelRowWidget extends StatelessWidget {
     final baseStyle = TextStyle(
       fontWeight: (isHeader || isBold) ? FontWeight.bold : FontWeight.normal,
       color: isHeader ? Theme.of(context).colorScheme.onSurfaceVariant : null,
-      fontSize: isHeader ? 12 : 14,
+      fontSize: isHeader ? 12 : 15,
     );
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(flex: 5, child: Text(object, style: baseStyle)),
-        Expanded(flex: 3, child: Text(need, style: baseStyle, textAlign: TextAlign.end)),
-        Expanded(flex: 3, child: Text(available, style: baseStyle, textAlign: TextAlign.end)),
+        Expanded(flex: 6, child: Text(object, style: baseStyle)),
         Expanded(
-          flex: 3,
-          child: Text(shortage, style: baseStyle.copyWith(color: shortageColor ?? baseStyle.color), textAlign: TextAlign.end),
+          flex: 5,
+          child: Text(
+            fraction,
+            style: baseStyle.copyWith(color: fractionColor ?? baseStyle.color),
+            textAlign: TextAlign.end,
+          ),
         ),
       ],
     );

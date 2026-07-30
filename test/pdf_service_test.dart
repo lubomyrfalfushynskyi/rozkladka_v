@@ -37,7 +37,11 @@ void main() {
       filterDivisionId: 1,
     );
 
-    final bytes = await PdfService.buildSummaryReport(scopeTitle: 'Тестове управління', tables: tables);
+    final bytes = await PdfService.buildSummaryReport(
+      scopeTitle: 'Тестове управління',
+      tables: tables,
+      meta: const PdfReportMeta(divisions: 1, buildings: 1, floors: 1, computerRooms: 0, territories: 1),
+    );
 
     expect(bytes, isNotEmpty);
     // Кожен коректний PDF-файл починається з магічного заголовка "%PDF".

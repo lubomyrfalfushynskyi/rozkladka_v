@@ -35,6 +35,15 @@ FloorSummaryEntry _floorEntry({
 }
 
 void main() {
+  test('на будь-якому рівні завжди рівно 3 таблиці (речовина/ВВК/щити)', () {
+    final tables = FunnelBuilder.build(floorEntries: const [], territoryEntries: const []);
+    expect(tables, hasLength(3));
+    expect(tables.map((t) => t.category), containsAll(FunnelCategory.values));
+    // Порожня система — усі три категорії з поясненням, а не мовчки зникли.
+    expect(tables.every((t) => t.isEmpty), isTrue);
+    expect(tables.every((t) => t.emptyMessage != null && t.emptyMessage!.isNotEmpty), isTrue);
+  });
+
   test('глобальний рівень: розбивка по управліннях, підсумок = сума', () {
     final floorA = const Floor(id: 1, buildingId: 1, name: 'Поверх A', totalArea: 100);
     final floorB = const Floor(id: 2, buildingId: 2, name: 'Поверх B', totalArea: 200);
@@ -44,12 +53,20 @@ void main() {
     ];
 
     final tables = FunnelBuilder.build(floorEntries: entries, territoryEntries: const []);
-    final substance = tables.firstWhere((t) => t.title.contains('по управліннях') && t.unit == 'л');
+    final substance = tables.firstWhere((t) => t.category == FunnelCategory.substance);
 
+    expect(substance.isEmpty, isFalse);
     expect(substance.rows, hasLength(2));
     expect(substance.rows.map((r) => r.object), containsAll(['Управління 1', 'Управління 2']));
     // 100 м² -> 10 л; 200 м² -> 20 л (1 л на 10 м²).
     expect(substance.total.need, 30);
+    expect(substance.total.fractionLabel, contains('30'));
+
+    // Немає жодного кабінету з ПК і жодної території на цьому наборі даних.
+    final vvk = tables.firstWhere((t) => t.category == FunnelCategory.vvk);
+    expect(vvk.isEmpty, isTrue);
+    final shields = tables.firstWhere((t) => t.category == FunnelCategory.shields);
+    expect(shields.isEmpty, isTrue);
   });
 
   test('рівень управління: розбивка по будівлях і територіях окремо', () {
@@ -68,14 +85,17 @@ void main() {
       filterDivisionId: 1,
     );
 
-    final substance = tables.firstWhere((t) => t.title.contains('по будівлях') && t.unit == 'л');
+    final substance = tables.firstWhere((t) => t.category == FunnelCategory.substance);
+    expect(substance.title, contains('по будівлях'));
     expect(substance.rows.single.object, 'Буд А');
 
-    final shields = tables.firstWhere((t) => t.title.contains('щити'));
+    final shields = tables.firstWhere((t) => t.category == FunnelCategory.shields);
+    expect(shields.isEmpty, isFalse);
     expect(shields.rows.single.object, 'Двір');
     expect(shields.rows.single.need, 3); // 12000/5000 = 2.4 -> округлення вгору -> 3
     expect(shields.rows.single.available, 1);
     expect(shields.rows.single.shortage, 2);
+    expect(shields.rows.single.fractionLabel, '1\u00A0/\u00A03');
   });
 
   test('рівень поверху: розбивка ВВК по кабінетах, речовина без розбивки', () {
@@ -109,11 +129,13 @@ void main() {
       filterFloorId: 1,
     );
 
-    final substance = tables.firstWhere((t) => t.title.contains('загальна площа'));
+    final substance = tables.firstWhere((t) => t.category == FunnelCategory.substance);
+    expect(substance.isEmpty, isFalse);
     expect(substance.rows, isEmpty); // на рівні поверху речовина без подальшої розбивки
     expect(substance.total.object, 'Поверх');
 
-    final vvk = tables.firstWhere((t) => t.title.contains('по кабінетах'));
+    final vvk = tables.firstWhere((t) => t.category == FunnelCategory.vvk);
+    expect(vvk.isEmpty, isFalse);
     expect(vvk.rows, hasLength(2));
     final row1 = vvk.rows.firstWhere((r) => r.object == 'Каб 1');
     final row2 = vvk.rows.firstWhere((r) => r.object == 'Каб 2');
@@ -124,9 +146,15 @@ void main() {
     expect(vvk.total.need, 2);
     expect(vvk.total.available, 1);
     expect(vvk.total.shortage, 1);
+
+    // Території структурно не існують нижче рівня управління — таблиця є,
+    // але з поясненням, а не відсутня.
+    final shields = tables.firstWhere((t) => t.category == FunnelCategory.shields);
+    expect(shields.isEmpty, isTrue);
+    expect(shields.emptyMessage, contains('лише на рівні управління'));
   });
 
-  test('території не показуються на рівні будівлі/поверху', () {
+  test('території: таблиця присутня на рівні будівлі/поверху, але з поясненням чому порожня', () {
     final floor = const Floor(id: 1, buildingId: 1, name: 'Поверх', totalArea: 100);
     final entries = [
       _floorEntry(divisionId: 1, divisionName: 'Управління', buildingId: 1, buildingName: 'Буд', floor: floor),
@@ -143,6 +171,14 @@ void main() {
       filterBuildingId: 1,
     );
 
-    expect(tables.any((t) => t.title.contains('щити')), isFalse);
+    expect(tables, hasLength(3));
+    final shields = tables.firstWhere((t) => t.category == FunnelCategory.shields);
+    expect(shields.isEmpty, isTrue);
+    expect(shields.rows, isEmpty);
+  });
+
+  test('fractionLabel формат — наявно / потреба з нерозривними пробілами', () {
+    const row = FunnelRow(object: 'x', need: 11, available: 5, shortage: 6);
+    expect(row.fractionLabel, '5 / 11');
   });
 }
