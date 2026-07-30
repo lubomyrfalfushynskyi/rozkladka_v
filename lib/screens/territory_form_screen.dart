@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/territory.dart';
 import '../services/calculation_service.dart';
@@ -21,6 +22,7 @@ class _TerritoryFormScreenState extends State<TerritoryFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final TextEditingController _areaController;
+  late final TextEditingController _shieldsController;
 
   @override
   void initState() {
@@ -29,9 +31,13 @@ class _TerritoryFormScreenState extends State<TerritoryFormScreen> {
     _areaController = TextEditingController(
       text: widget.territory != null ? widget.territory!.area.toStringAsFixed(0) : '',
     );
+    _shieldsController = TextEditingController(
+      text: widget.territory != null ? widget.territory!.assignedShields.toString() : '0',
+    );
   }
 
   double? get _parsedArea => double.tryParse(_areaController.text.replaceAll(',', '.'));
+  int get _parsedShields => int.tryParse(_shieldsController.text) ?? 0;
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
@@ -41,6 +47,7 @@ class _TerritoryFormScreenState extends State<TerritoryFormScreen> {
       divisionId: widget.territory?.divisionId ?? widget.divisionId!,
       name: _nameController.text.trim(),
       area: _parsedArea!,
+      assignedShields: _parsedShields,
     );
     if (widget.territory == null) {
       await db.insertTerritory(territory);
@@ -62,10 +69,15 @@ class _TerritoryFormScreenState extends State<TerritoryFormScreen> {
   @override
   Widget build(BuildContext context) {
     final area = _parsedArea;
-    final preview = (area != null && area > 0)
+    final calc = (area != null && area > 0)
         ? CalculationService.calculateTerritory(
-            Territory(divisionId: widget.divisionId ?? widget.territory?.divisionId ?? 0, name: '', area: area),
-          ).requiredShields
+            Territory(
+              divisionId: widget.divisionId ?? widget.territory?.divisionId ?? 0,
+              name: '',
+              area: area,
+              assignedShields: _parsedShields,
+            ),
+          )
         : null;
 
     return Scaffold(
@@ -76,7 +88,8 @@ class _TerritoryFormScreenState extends State<TerritoryFormScreen> {
             title: 'Територія (ТВУЗ)',
             points: [
               'Площа території визначає, скільки пожежних щитів для неї потрібно (розрахунок нижче форми).',
-              'Назва і площа редагуються прямо тут у будь-який момент.',
+              '"Наявно щитів" — скільки фактично встановлено; недостача = потрібно мінус наявно.',
+              'Назва, площа й наявна кількість редагуються прямо тут у будь-який момент.',
             ],
           ),
           if (widget.territory != null)
@@ -107,12 +120,32 @@ class _TerritoryFormScreenState extends State<TerritoryFormScreen> {
                   return null;
                 },
               ),
-              if (preview != null)
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _shieldsController,
+                decoration: const InputDecoration(labelText: 'Наявно щитів (фактично встановлено)'),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (_) => setState(() {}),
+              ),
+              if (calc != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Потрібно пожежних щитів: $preview',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Потрібно пожежних щитів: ${calc.requiredShields}',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
+                      ),
+                      if (calc.shortageShields > 0)
+                        Text(
+                          'Недостача: ${calc.shortageShields}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                        )
+                      else
+                        const Text('Забезпечено достатньо', style: TextStyle(color: Colors.green)),
+                    ],
                   ),
                 ),
               const SizedBox(height: 24),

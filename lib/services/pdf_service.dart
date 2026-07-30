@@ -6,15 +6,14 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../models/summary_data.dart';
 
-/// Формує друковану PDF-версію зведеного звіту (той самий розрахунок, що й
-/// на екрані "Статистика") — для офіційної звітності, а не для передачі
-/// даних між пристроями (для цього є CSV).
+/// Формує друковану PDF-версію звіту-воронки (той самий розрахунок, що й
+/// на екрані "Статистика": об'єкт/потреба/наявно/недостача) — для
+/// офіційної звітності, а не для передачі даних між пристроями (для цього
+/// є CSV).
 class PdfService {
   static Future<Uint8List> buildSummaryReport({
     required String scopeTitle,
-    required SummaryTotals totals,
-    required List<FloorSummaryEntry> floorEntries,
-    required List<TerritorySummaryEntry> territoryEntries,
+    required List<FunnelTable> tables,
   }) async {
     final regular = pw.Font.ttf(await rootBundle.load('assets/fonts/Roboto-Regular.ttf'));
     final bold = pw.Font.ttf(await rootBundle.load('assets/fonts/Roboto-Bold.ttf'));
@@ -23,6 +22,7 @@ class PdfService {
     final now = DateTime.now();
     String two(int n) => n.toString().padLeft(2, '0');
     final generatedAt = '${two(now.day)}.${two(now.month)}.${now.year} ${two(now.hour)}:${two(now.minute)}';
+    final hasShortage = tables.any((t) => t.hasShortage);
 
     doc.addPage(
       pw.MultiPage(
@@ -36,7 +36,7 @@ class PdfService {
           ],
         ),
         build: (context) => [
-          if (totals.hasShortage)
+          if (hasShortage)
             pw.Container(
               padding: const pw.EdgeInsets.all(10),
               margin: const pw.EdgeInsets.only(bottom: 12),
@@ -45,66 +45,33 @@ class PdfService {
                 border: pw.Border.all(color: PdfColors.red200),
                 borderRadius: pw.BorderRadius.circular(4),
               ),
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text('Виявлено недостачу', style: pw.TextStyle(font: bold, color: PdfColors.red900)),
-                  if (totals.totalShortageLiters > 0)
-                    pw.Text(
-                      'Бракує вогнегасної речовини (загальні приміщення): '
-                      '${_formatNumber(totals.totalShortageLiters)} од.',
-                    ),
-                  if (totals.totalMissingRoomExtinguishers > 0)
-                    pw.Text('Бракує вогнегасників ВВК у кабінетах з ПК: ${totals.totalMissingRoomExtinguishers} шт.'),
-                ],
-              ),
+              child: pw.Text('Виявлено недостачу — деталі в таблицях нижче', style: pw.TextStyle(font: bold, color: PdfColors.red900)),
             ),
-          pw.Text('Загалом по будівлях', style: pw.TextStyle(font: bold, fontSize: 13)),
-          pw.SizedBox(height: 4),
-          pw.Text('Вогнегасна речовина (звичайні приміщення): ${_formatNumber(totals.totalLiters)} л'),
-          pw.Text('Вогнегасники для кабінетів з ПК (за нормою):'),
-          if (totals.extinguisherCounts.isEmpty) pw.Text('  — немає кабінетів з ПК'),
-          for (final entry in totals.extinguisherCounts.entries) pw.Text('  • ${entry.value} шт. — ${entry.key}'),
-          pw.SizedBox(height: 16),
-          if (territoryEntries.isNotEmpty) ...[
-            pw.Text('Територія (ТВУЗ)', style: pw.TextStyle(font: bold, fontSize: 13)),
+          for (final table in tables) ...[
+            pw.Text('${table.title}, ${table.unit}', style: pw.TextStyle(font: bold, fontSize: 13)),
             pw.SizedBox(height: 4),
             pw.TableHelper.fromTextArray(
               headerStyle: pw.TextStyle(font: bold, fontSize: 9),
               cellStyle: const pw.TextStyle(fontSize: 9),
-              headers: ['Управління', 'Територія', 'Площа, м²', 'Потрібно щитів'],
+              headers: ['Об\'єкт', 'Потреба', 'Наявно', 'Недостача'],
               data: [
-                for (final t in territoryEntries)
+                [
+                  table.total.object,
+                  _formatNumber(table.total.need),
+                  _formatNumber(table.total.available),
+                  _formatNumber(table.total.shortage),
+                ],
+                for (final row in table.rows)
                   [
-                    t.divisionName,
-                    t.calc.territory.name,
-                    _formatNumber(t.calc.territory.area),
-                    t.calc.requiredShields.toString(),
+                    row.object,
+                    _formatNumber(row.need),
+                    _formatNumber(row.available),
+                    _formatNumber(row.shortage),
                   ],
               ],
             ),
             pw.SizedBox(height: 16),
           ],
-          pw.Text('Деталізація по поверхах', style: pw.TextStyle(font: bold, fontSize: 13)),
-          pw.SizedBox(height: 4),
-          pw.TableHelper.fromTextArray(
-            headerStyle: pw.TextStyle(font: bold, fontSize: 9),
-            cellStyle: const pw.TextStyle(fontSize: 9),
-            headers: ['Управління', 'Будівля', 'Поверх', 'Площа', 'Потрібно, л', 'Наявно', 'Недостача', 'Каб. з ПК'],
-            data: [
-              for (final f in floorEntries)
-                [
-                  f.divisionName,
-                  f.buildingName,
-                  f.floor.name,
-                  _formatNumber(f.calc.remainingArea),
-                  _formatNumber(f.calc.requiredLiters),
-                  _formatNumber(f.calc.assignedCapacityLiters),
-                  f.calc.shortageLiters > 0 ? _formatNumber(f.calc.shortageLiters) : '—',
-                  f.calc.computerRooms.length.toString(),
-                ],
-            ],
-          ),
         ],
       ),
     );
@@ -112,6 +79,6 @@ class PdfService {
     return doc.save();
   }
 
-  static String _formatNumber(double value) =>
+  static String _formatNumber(num value) =>
       value == value.roundToDouble() ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
 }

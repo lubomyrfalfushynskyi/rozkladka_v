@@ -66,8 +66,13 @@ class FloorCalculation {
 class TerritoryCalculation {
   final Territory territory;
   final int requiredShields;
+  final int shortageShields;
 
-  const TerritoryCalculation({required this.territory, required this.requiredShields});
+  const TerritoryCalculation({
+    required this.territory,
+    required this.requiredShields,
+    required this.shortageShields,
+  });
 }
 
 class CalculationService {
@@ -116,6 +121,7 @@ class CalculationService {
 
   static TerritoryCalculation calculateTerritory(Territory territory) {
     final shields = (territory.area / FireSafetyNorms.territoryAreaPerShield).ceil();
-    return TerritoryCalculation(territory: territory, requiredShields: shields);
+    final shortage = math.max(0, shields - territory.assignedShields);
+    return TerritoryCalculation(territory: territory, requiredShields: shields, shortageShields: shortage);
   }
 }

@@ -252,7 +252,7 @@ void main() {
       floorId: floorAId,
     ));
     // Поверх 2 навмисно лишається зовсім порожнім (без кабінетів і вогнегасників).
-    await db.insertTerritory(Territory(divisionId: divisionId, name: 'Двір', area: 12000));
+    await db.insertTerritory(Territory(divisionId: divisionId, name: 'Двір', area: 12000, assignedShields: 2));
 
     final csvText = await CsvService.buildCsv(divisionId: divisionId);
 
@@ -298,6 +298,7 @@ void main() {
     expect(restoredTerritories, hasLength(1));
     expect(restoredTerritories.first.name, 'Двір');
     expect(restoredTerritories.first.area, 12000);
+    expect(restoredTerritories.first.assignedShields, 2);
 
     // Повторний імпорт того самого файлу — не повинен дублювати нічого.
     final secondImport = await CsvService.importCsv(csvText);

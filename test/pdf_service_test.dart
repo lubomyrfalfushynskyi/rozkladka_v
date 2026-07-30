@@ -22,7 +22,7 @@ void main() {
         calc: floorCalc,
       ),
     ];
-    final territory = const Territory(id: 1, divisionId: 1, name: 'Двір', area: 12000);
+    final territory = const Territory(id: 1, divisionId: 1, name: 'Двір', area: 12000, assignedShields: 1);
     final territoryEntries = [
       TerritorySummaryEntry(
         divisionId: 1,
@@ -30,14 +30,14 @@ void main() {
         calc: CalculationService.calculateTerritory(territory),
       ),
     ];
-    final totals = SummaryTotals.fromFloorEntries(floorEntries);
 
-    final bytes = await PdfService.buildSummaryReport(
-      scopeTitle: 'Тестове управління',
-      totals: totals,
+    final tables = FunnelBuilder.build(
       floorEntries: floorEntries,
       territoryEntries: territoryEntries,
+      filterDivisionId: 1,
     );
+
+    final bytes = await PdfService.buildSummaryReport(scopeTitle: 'Тестове управління', tables: tables);
 
     expect(bytes, isNotEmpty);
     // Кожен коректний PDF-файл починається з магічного заголовка "%PDF".

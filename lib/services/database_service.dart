@@ -35,7 +35,7 @@ class DatabaseService {
     final path = join(dbPath, dbFileName);
     return openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE divisions (
@@ -76,6 +76,7 @@ class DatabaseService {
             divisionId INTEGER NOT NULL,
             name TEXT NOT NULL,
             area REAL NOT NULL,
+            assignedShields INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY (divisionId) REFERENCES divisions (id) ON DELETE CASCADE
           )
         ''');
@@ -91,6 +92,9 @@ class DatabaseService {
         }
         if (oldVersion < 4) {
           await _createCustomExtinguisherModelsTable(db);
+        }
+        if (oldVersion < 5) {
+          await db.execute('ALTER TABLE territories ADD COLUMN assignedShields INTEGER NOT NULL DEFAULT 0');
         }
       },
       onConfigure: (db) async {
@@ -370,19 +374,30 @@ class DatabaseService {
 
   /// Знаходить територію за назвою в межах управління або створює нову з
   /// вказаною площею. Якщо вже існує — оновлює площу значенням з CSV.
-  Future<Territory> findOrCreateTerritory(int divisionId, String name, double area) async {
+  Future<Territory> findOrCreateTerritory(
+    int divisionId,
+    String name,
+    double area, {
+    int? assignedShields,
+  }) async {
     final db = await database;
     final rows = await db.query('territories', where: 'divisionId = ?', whereArgs: [divisionId]);
     final target = name.toLowerCase();
     for (final row in rows) {
       if ((row['name'] as String).toLowerCase() == target) {
-        final updated = Territory.fromMap(row).copyWith(area: area);
+        final updated = Territory.fromMap(row).copyWith(area: area, assignedShields: assignedShields);
         await updateTerritory(updated);
         return updated;
       }
     }
-    final id = await insertTerritory(Territory(divisionId: divisionId, name: name, area: area));
-    return Territory(id: id, divisionId: divisionId, name: name, area: area);
+    final territory = Territory(
+      divisionId: divisionId,
+      name: name,
+      area: area,
+      assignedShields: assignedShields ?? 0,
+    );
+    final id = await insertTerritory(territory);
+    return territory.copyWith(id: id);
   }
 
   // Extinguishers

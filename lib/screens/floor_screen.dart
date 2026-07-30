@@ -161,7 +161,7 @@ class _FloorScreenState extends State<FloorScreen> {
                   ListTile(
                     leading: const Icon(Icons.local_fire_department_outlined),
                     title: const Text('Вогнегасники загальної площі'),
-                    subtitle: Text('${_floorExtinguishers.length} шт.'),
+                    subtitle: Text('${_floorExtinguishers.length} шт.'),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () async {
                       await Navigator.push(

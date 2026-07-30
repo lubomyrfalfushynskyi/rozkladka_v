@@ -34,6 +34,7 @@ const List<String> csvHeaders = [
   'Кабінет з ПК',
   'Територія',
   'Площа території',
+  'Наявно щитів',
   'Тип',
   'Модель',
   'Ємність',
@@ -139,13 +140,13 @@ class CsvService {
       row[6] = _formatNumber(room.area);
       row[7] = room.hasComputer ? 'так' : 'ні';
     }
-    row[10] = e.type.code;
-    row[11] = model?.code ?? '';
-    row[12] = _formatNumber(e.capacityLiters);
-    row[13] = e.type.unit;
-    row[14] = e.serialNumber;
-    row[15] = e.inventoryNumber;
-    row[16] = e.id?.toString() ?? '';
+    row[11] = e.type.code;
+    row[12] = model?.code ?? '';
+    row[13] = _formatNumber(e.capacityLiters);
+    row[14] = e.type.unit;
+    row[15] = e.serialNumber;
+    row[16] = e.inventoryNumber;
+    row[17] = e.id?.toString() ?? '';
     return row;
   }
 
@@ -193,6 +194,7 @@ class CsvService {
     row[1] = division;
     row[8] = t.name;
     row[9] = _formatNumber(t.area);
+    row[10] = t.assignedShields.toString();
     return row;
   }
 
@@ -288,12 +290,13 @@ class CsvService {
   ) async {
     final name = row[8].toString().trim();
     final area = double.tryParse(row[9].toString().trim().replaceAll(',', '.'));
+    final assignedShields = int.tryParse(row[10].toString().trim()) ?? 0;
     if (name.isEmpty || area == null) {
       skipped.add('Рядок ${i + 1}: відсутні дані території');
       throw _SkipRow();
     }
     final divisionId = await db.findOrCreateDivision(divisionName);
-    await db.findOrCreateTerritory(divisionId, name, area);
+    await db.findOrCreateTerritory(divisionId, name, area, assignedShields: assignedShields);
   }
 
   static Future<void> _importFloorRow(
@@ -349,10 +352,10 @@ class CsvService {
     final floorName = row[3].toString().trim();
     final floorArea = double.tryParse(row[4].toString().trim().replaceAll(',', '.'));
     final roomName = row[5].toString().trim();
-    final typeCode = row[10].toString().trim();
-    final capacity = double.tryParse(row[12].toString().trim().replaceAll(',', '.'));
-    final serial = row[14].toString().trim();
-    final inventory = row[15].toString().trim();
+    final typeCode = row[11].toString().trim();
+    final capacity = double.tryParse(row[13].toString().trim().replaceAll(',', '.'));
+    final serial = row[15].toString().trim();
+    final inventory = row[16].toString().trim();
 
     if (buildingName.isEmpty || floorName.isEmpty || floorArea == null || capacity == null) {
       skipped.add('Рядок ${i + 1}: відсутні обовʼязкові поля вогнегасника');
