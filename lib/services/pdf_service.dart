@@ -49,12 +49,12 @@ class PdfService {
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             pw.Text('Зведений звіт — $scopeTitle', style: pw.TextStyle(font: bold, fontSize: 18)),
-            pw.Text('Сформовано: $generatedAt', style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+            pw.Text('Сформовано: $generatedAt', style: pw.TextStyle(font: regular, fontSize: 9, color: PdfColors.grey700)),
             pw.SizedBox(height: 6),
             pw.Text(
               'У межах звіту: управлінь — ${meta.divisions}, будівель — ${meta.buildings}, поверхів — ${meta.floors}, '
               'кабінетів з ПК — ${meta.computerRooms}, територій — ${meta.territories}.',
-              style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+              style: pw.TextStyle(font: regular, fontSize: 9, color: PdfColors.grey700),
             ),
             pw.SizedBox(height: 12),
           ],
@@ -81,13 +81,13 @@ class PdfService {
                 decoration: pw.BoxDecoration(color: PdfColors.grey100, borderRadius: pw.BorderRadius.circular(4)),
                 child: pw.Text(
                   'Дані відсутні в системі: ${table.emptyMessage}',
-                  style: pw.TextStyle(fontSize: 9, color: PdfColors.grey800, fontStyle: pw.FontStyle.italic),
+                  style: pw.TextStyle(font: regular, fontSize: 9, color: PdfColors.grey800),
                 ),
               )
             else ...[
               pw.TableHelper.fromTextArray(
                 headerStyle: pw.TextStyle(font: bold, fontSize: 9),
-                cellStyle: const pw.TextStyle(fontSize: 9),
+                cellStyle: pw.TextStyle(font: regular, fontSize: 9),
                 textStyleBuilder: (columnIndex, data, rowNum) {
                   final isTotalRow = rowNum == 1;
                   final shortage = isTotalRow ? table.total.shortage : table.rows[rowNum - 2].shortage;
