@@ -248,6 +248,50 @@ class _SummaryScreenState extends State<SummaryScreen> {
     );
   }
 
+  /// Звіт-CSV — лише вогнегасники, для читання (напр. в Excel), без
+  /// технічних колонок і не призначений для імпорту назад.
+  Future<void> _exportExtinguisherReport() async {
+    final defaultName = 'Звіт_вогнегасники_${_sanitize(_scopeTitle)}_${_formatTimestamp(DateTime.now())}';
+    final controller = TextEditingController(text: defaultName);
+    final fileName = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Звіт CSV (лише вогнегасники)'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Назва файлу'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Скасувати')),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+              context,
+              controller.text.trim().isEmpty ? defaultName : controller.text.trim(),
+            ),
+            child: const Text('Експортувати'),
+          ),
+        ],
+      ),
+    );
+    if (fileName == null) return;
+    if (!mounted) return;
+
+    final csvText = await CsvService.buildExtinguisherReport(
+      divisionId: _filterDivisionId,
+      buildingId: _filterBuildingId,
+      floorId: _filterFloorId,
+    );
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/$fileName.csv');
+    await file.writeAsString(csvText);
+
+    if (!mounted) return;
+    await SharePlus.instance.share(
+      ShareParams(files: [XFile(file.path)], text: 'Звіт — $fileName'),
+    );
+  }
+
   Future<void> _importCsv() async {
     final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['csv']);
     if (result == null || result.files.single.path == null) return;
@@ -337,12 +381,20 @@ class _SummaryScreenState extends State<SummaryScreen> {
               'Експорт CSV — повне дерево даних (управління/будівлі/поверхи з площами/кабінети/'
                   'вогнегасники/території) для передачі чи резервної копії; Імпорт читає такий файл і '
                   'створює чи оновлює об\'єкти автоматично.',
+              'Звіт CSV — лише вогнегасники, без технічних колонок і без порожніх заглушок, для '
+                  'читання (напр. в Excel). Цей файл назад не імпортується — він для перегляду, не '
+                  'для передачі даних.',
               'Експорт PDF — друкована версія обраних таблиць (з урахуванням чекбоксів) для офіційної '
                   'звітності.',
             ],
           ),
           IconButton(icon: const Icon(Icons.file_upload_outlined), tooltip: 'Імпорт CSV', onPressed: _importCsv),
           IconButton(icon: const Icon(Icons.ios_share), tooltip: 'Експорт CSV', onPressed: _exportCsv),
+          IconButton(
+            icon: const Icon(Icons.receipt_long_outlined),
+            tooltip: 'Звіт CSV (лише вогнегасники)',
+            onPressed: _exportExtinguisherReport,
+          ),
           IconButton(icon: const Icon(Icons.picture_as_pdf_outlined), tooltip: 'Експорт PDF', onPressed: _exportPdf),
         ],
       ),

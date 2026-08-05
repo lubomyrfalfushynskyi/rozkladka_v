@@ -44,6 +44,26 @@ const List<String> csvHeaders = [
   'Ідентифікатор',
 ];
 
+/// Колонки звіту-CSV (лише вогнегасники, для читання людиною — не для
+/// імпорту): без "Тип рядка" й "Ідентифікатор" (технічні, потрібні лише
+/// для розбору при імпорті) і без територій/щитів (окрема категорія
+/// майна, не вогнегасники).
+const List<String> extinguisherReportHeaders = [
+  'Управління',
+  'Будівля',
+  'Поверх',
+  'Площа поверху',
+  'Кабінет',
+  'Площа кабінету',
+  'Кабінет з ПК',
+  'Тип',
+  'Модель',
+  'Ємність',
+  'Одиниця',
+  'Заводський номер',
+  'Інвентарний номер',
+];
+
 /// Формує/читає повне дерево даних (управління → будівлі → поверхи →
 /// кабінети → вогнегасники, і окремо території/щити) в одному CSV-файлі.
 /// Кожен рядок має один із шести "типів" (перша колонка) — так порожні
@@ -116,6 +136,75 @@ class CsvService {
     }
 
     return _bom + csv.encode(rows);
+  }
+
+  /// Звіт-CSV — лише вогнегасники, для читання людиною (напр. в Excel),
+  /// не для імпорту назад: без "Тип рядка"/"Ідентифікатор", без порожніх
+  /// управлінь/будівель/поверхів/кабінетів-заглушок і без територій/щитів
+  /// (окрема категорія майна). Той самий рівень фільтра, що й на екрані.
+  static Future<String> buildExtinguisherReport({
+    int? divisionId,
+    int? buildingId,
+    int? floorId,
+  }) async {
+    final db = DatabaseService.instance;
+    final rows = <List<String>>[extinguisherReportHeaders];
+    final customModels = (await db.getCustomExtinguisherModels()).map((c) => c.asModel).toList();
+
+    final divisions = await db.getDivisions();
+    for (final division in divisions) {
+      if (divisionId != null && division.id != divisionId) continue;
+      final buildings = await db.getBuildingsForDivision(division.id!);
+      for (final building in buildings) {
+        if (buildingId != null && building.id != buildingId) continue;
+        final floors = await db.getFloorsForBuilding(building.id!);
+        for (final floor in floors) {
+          if (floorId != null && floor.id != floorId) continue;
+
+          final floorExtinguishers = await db.getExtinguishersForFloor(floor.id!);
+          for (final e in floorExtinguishers) {
+            rows.add(_extinguisherReportRow(e, division.name, building.name, floor, null, customModels));
+          }
+
+          final rooms = await db.getRoomsForFloor(floor.id!);
+          for (final room in rooms) {
+            if (!room.hasComputer) continue;
+            final roomExtinguishers = await db.getExtinguishersForRoom(room.id!);
+            for (final e in roomExtinguishers) {
+              rows.add(_extinguisherReportRow(e, division.name, building.name, floor, room, customModels));
+            }
+          }
+        }
+      }
+    }
+
+    return _bom + csv.encode(rows);
+  }
+
+  static List<String> _extinguisherReportRow(
+    Extinguisher e,
+    String division,
+    String building,
+    Floor floor,
+    Room? room,
+    List<ExtinguisherModel> customModels,
+  ) {
+    final model = ExtinguisherModelCatalog.findByTypeAndCapacityWithCustom(e.type, e.capacityLiters, customModels);
+    return [
+      division,
+      building,
+      floor.name,
+      _formatNumber(floor.totalArea),
+      room?.name ?? '',
+      room != null ? _formatNumber(room.area) : '',
+      room != null ? (room.hasComputer ? 'так' : 'ні') : '',
+      e.type.code,
+      model?.code ?? '',
+      _formatNumber(e.capacityLiters),
+      e.type.unit,
+      e.serialNumber,
+      e.inventoryNumber,
+    ];
   }
 
   static List<String> _blankRow() => List<String>.filled(csvHeaders.length, '');

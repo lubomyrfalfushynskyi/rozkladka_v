@@ -309,4 +309,46 @@ void main() {
     expect(await db.getFloorsForBuilding(mainBuilding.id!), hasLength(2));
     expect(await db.getTerritoriesForDivision(restoredDivisionId), hasLength(1));
   });
+
+  test('звіт-CSV: лише вогнегасники, без технічних колонок і без заглушок', () async {
+    final db = DatabaseService.instance;
+    final divisionId = await db.insertDivision(const Division(name: 'Управління Звіт'));
+    final buildingId = await db.insertBuilding(Building(divisionId: divisionId, name: 'Будівля Звіт'));
+    final floorId = await db.insertFloor(Floor(buildingId: buildingId, name: 'Поверх Звіт', totalArea: 120));
+    await db.insertFloor(Floor(buildingId: buildingId, name: 'Порожній поверх Звіт', totalArea: 50));
+    final roomId = await db.insertRoom(Room(floorId: floorId, name: 'Каб. Звіт', area: 20, hasComputer: true));
+    await db.insertExtinguisher(Extinguisher(
+      serialNumber: 'SN-REPORT-ROOM',
+      inventoryNumber: '1234201',
+      type: ExtinguisherType.vvk,
+      capacityLiters: 5,
+      roomId: roomId,
+    ));
+    await db.insertExtinguisher(Extinguisher(
+      serialNumber: 'SN-REPORT-FLOOR',
+      inventoryNumber: '1234202',
+      type: ExtinguisherType.vp,
+      capacityLiters: 5,
+      floorId: floorId,
+    ));
+    await db.insertTerritory(Territory(divisionId: divisionId, name: 'Двір Звіт', area: 12000, assignedShields: 1));
+
+    final csvText = await CsvService.buildExtinguisherReport(divisionId: divisionId);
+    final header = csvText.split('\n').first.replaceFirst('﻿', '');
+
+    // Технічні/непотрібні для перегляду колонки відсутні.
+    expect(header, isNot(contains('Тип рядка')));
+    expect(header, isNot(contains('Ідентифікатор')));
+    expect(header, isNot(contains('Територія')));
+    expect(header, isNot(contains('Наявно щитів')));
+    expect(header.split(',').length, extinguisherReportHeaders.length);
+
+    // Обидва вогнегасники присутні.
+    expect(csvText, contains('SN-REPORT-ROOM'));
+    expect(csvText, contains('SN-REPORT-FLOOR'));
+    // Територія (окрема категорія майна) у цьому звіті не показується.
+    expect(csvText, isNot(contains('Двір Звіт')));
+    // Порожній поверх без вогнегасників не створює рядка-заглушки.
+    expect(csvText, isNot(contains('Порожній поверх Звіт')));
+  });
 }
